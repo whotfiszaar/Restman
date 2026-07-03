@@ -918,7 +918,10 @@ export default function App() {
 
           {/* Toggle Sidebar */}
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() => {
+              setSidebarOpen(!sidebarOpen);
+              setResponseMaximized(false);
+            }}
             className={`p-1 rounded hover:bg-sidebar-selection transition-colors cursor-pointer bg-transparent border-none ${sidebarOpen ? "text-[#007acc]" : "text-sidebar-text-muted hover:text-sidebar-text"}`}
             title="Toggle Sidebar (Ctrl+B)"
           >
@@ -930,7 +933,10 @@ export default function App() {
 
           {/* Toggle Split Mode */}
           <button
-            onClick={() => setLayoutMode(layoutMode === "side-by-side" ? "stacked" : "side-by-side")}
+            onClick={() => {
+              setLayoutMode(layoutMode === "side-by-side" ? "stacked" : "side-by-side");
+              setResponseMaximized(false);
+            }}
             className={`p-1 rounded hover:bg-sidebar-selection transition-colors cursor-pointer bg-transparent border-none ${layoutMode === "stacked" ? "text-[#007acc]" : "text-sidebar-text-muted"}`}
             title={layoutMode === "stacked" ? "Layout: Stacked (Top/Bottom)" : "Layout: Side-by-Side"}
           >
@@ -949,7 +955,10 @@ export default function App() {
 
           {/* Toggle Response Panel */}
           <button
-            onClick={() => setResponseOpen(!responseOpen)}
+            onClick={() => {
+              setResponseOpen(!responseOpen);
+              setResponseMaximized(false);
+            }}
             className={`p-1 rounded hover:bg-sidebar-selection transition-colors cursor-pointer bg-transparent border-none ${responseOpen ? "text-[#007acc]" : "text-sidebar-text-muted hover:text-sidebar-text"}`}
             title="Toggle Response (Ctrl+J)"
           >

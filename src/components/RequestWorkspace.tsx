@@ -702,7 +702,13 @@ export default function RequestWorkspace({
     if (activeHeaderSuggestionsRowIdx !== idx) return;
     const filtered = HEADER_SUGGESTIONS.filter(item => 
       item.toLowerCase().includes(headerFilter.toLowerCase())
-    );
+    ).sort((a, b) => {
+      const aStart = a.toLowerCase().startsWith(headerFilter.toLowerCase());
+      const bStart = b.toLowerCase().startsWith(headerFilter.toLowerCase());
+      if (aStart && !bStart) return -1;
+      if (!aStart && bStart) return 1;
+      return 0;
+    });
     if (filtered.length === 0) return;
 
     if (e.key === "ArrowDown") {
@@ -954,7 +960,7 @@ export default function RequestWorkspace({
       {/* Dynamic Request Tabs Header (Frameless draggable, dark styling) */}
       <div 
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-        className="flex items-center justify-between border-b border-neutral-800 bg-neutral-950 px-2 shrink-0 min-h-[41px] h-[41px] select-none pr-[140px]"
+        className="flex items-center justify-between border-b border-neutral-800 bg-neutral-950 px-2 pt-1 shrink-0 min-h-[44px] h-[44px] select-none pr-[140px]"
       >
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {!sidebarOpen && (
@@ -1285,7 +1291,7 @@ export default function RequestWorkspace({
                   </button>
                 </div>
 
-                <div className="border border-neutral-900 rounded-lg overflow-x-auto">
+                <div className="border border-neutral-900 rounded-lg relative overflow-visible">
                   <table className="w-full border-collapse text-xs font-mono text-left">
                     <thead>
                       <tr className="border-b border-neutral-900 bg-neutral-900/30 text-neutral-400">
@@ -1322,11 +1328,11 @@ export default function RequestWorkspace({
                                   onChange={(e) => {
                                     handleHeaderRowChange(idx, "key", e.target.value);
                                     setHeaderFilter(e.target.value);
-                                    setActiveHeaderSuggestionsIdx(0);
+                                    setActiveHeaderSuggestionsIdx(null);
                                   }}
                                   onFocus={() => {
                                     setActiveHeaderSuggestionsRowIdx(idx);
-                                    setActiveHeaderSuggestionsIdx(0);
+                                    setActiveHeaderSuggestionsIdx(null);
                                     setHeaderFilter(h.key);
                                   }}
                                   onKeyDown={(e) => handleHeaderKeyDown(idx, e)}
@@ -1346,7 +1352,13 @@ export default function RequestWorkspace({
                                   (() => {
                                     const filtered = HEADER_SUGGESTIONS.filter(item => 
                                       item.toLowerCase().includes(headerFilter.toLowerCase())
-                                    );
+                                    ).sort((a, b) => {
+                                      const aStart = a.toLowerCase().startsWith(headerFilter.toLowerCase());
+                                      const bStart = b.toLowerCase().startsWith(headerFilter.toLowerCase());
+                                      if (aStart && !bStart) return -1;
+                                      if (!aStart && bStart) return 1;
+                                      return 0;
+                                    });
                                     if (filtered.length === 0) return null;
                                     return (
                                       <div className="absolute left-0 top-full mt-1 z-[150] w-56 bg-neutral-950 border border-neutral-850 rounded-lg p-1 shadow-2xl max-h-48 overflow-y-auto scrollbar-thin flex flex-col font-sans">
