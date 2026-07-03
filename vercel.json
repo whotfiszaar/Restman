@@ -2,5 +2,10 @@
   "buildCommand": "npx vite build --config vite.config.web.ts",
   "outputDirectory": "dist-web",
   "framework": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "routes": [
+    { "src": "/landing", "dest": "/landing.html" },
+    { "src": "/landing.html", "dest": "/landing.html" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }

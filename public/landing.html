@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RestMan — Premium Offline API Workstation</title>
+  <meta name="description" content="A state-of-the-art, 100% offline, lightning-fast API client & debug workstation for developers. Zero cloud lag. Zero data tracking.">
+  
+  <!-- Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;450;550;650;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS Play CDN for beautiful utility styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'monospace'],
+            display: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              charcoal: '#0a0a0c',
+              cardBg: '#131317',
+              border: '#1f1f26',
+              softIvory: '#e4e4e9',
+              gold: '#ffb454',
+              blue: '#007acc',
+              accent: '#bd93f9',
+            }
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'slide-up': 'slideUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'glow-pulse': 'glowPulse 3s ease-in-out infinite',
+            'bounce-slow': 'bounceSlow 4s infinite',
+            'spin-slow': 'spinSlow 12s linear infinite',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer base {
+      body {
+        @apply bg-brand-charcoal text-[#94a3b8] font-sans antialiased selection:bg-brand-blue/30 selection:text-white;
+      }
+      h1, h2, h3, h4 {
+        @apply text-brand-softIvory font-display font-semibold tracking-tight;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes glowPulse {
+      0%, 100% { opacity: 0.15; filter: blur(50px); }
+      50% { opacity: 0.3; filter: blur(65px); }
+    }
+
+    @keyframes bounceSlow {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .glass-panel {
+      @apply bg-neutral-950/45 border border-brand-border/60 rounded-2xl backdrop-blur-md;
+    }
+
+    .interactive-btn {
+      @apply relative overflow-hidden transition-all duration-300 active:scale-[0.97];
+    }
+
+    .glow-glow {
+      background: radial-gradient(circle at center, rgba(0, 122, 204, 0.18) 0%, transparent 60%);
+    }
+
+    /* Thin modern scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f1f26;
+      border-radius: 99px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3e3e4a;
+    }
+  </style>
+</head>
+<body class="overflow-x-hidden relative min-h-screen">
+
+  <!-- Background Decorative Ambient Glows (Claude Motion Vibe) -->
+  <div class="absolute top-0 left-1/4 w-[500px] h-[500px] glow-glow rounded-full -translate-y-1/2 pointer-events-none animate-glow-pulse"></div>
+  <div class="absolute top-[60vh] right-1/4 w-[600px] h-[600px] glow-glow rounded-full pointer-events-none animate-glow-pulse" style="animation-delay: 1.5s;"></div>
+
+  <!-- Header Navigation -->
+  <header class="w-full max-w-7xl mx-auto px-6 py-6 flex items-center justify-between relative z-10 animate-fade-in">
+    <div class="flex items-center gap-3">
+      <!-- Premium Logo Graphic -->
+      <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-brand-blue to-brand-accent p-[1px] shadow-lg shadow-brand-blue/10">
+        <div class="h-full w-full bg-brand-charcoal rounded-[11px] flex items-center justify-center font-display font-black text-white text-sm">
+          R
+        </div>
+      </div>
+      <span class="text-lg font-black tracking-widest text-brand-softIvory font-display">RESTMAN</span>
+    </div>
+    
+    <nav class="hidden md:flex items-center gap-8 text-xs font-semibold tracking-wider uppercase">
+      <a href="#features" class="hover:text-brand-softIvory transition-colors">Features</a>
+      <a href="#demo" class="hover:text-brand-softIvory transition-colors">Interactive Demo</a>
+      <a href="#architecture" class="hover:text-brand-softIvory transition-colors">Architecture</a>
+      <a href="https://github.com/whotfiszaar/Restman" target="_blank" class="hover:text-brand-softIvory transition-colors">GitHub</a>
+    </nav>
+
+    <div>
+      <a href="#download" class="interactive-btn px-4 py-2 text-xs font-bold bg-[#18181b] hover:bg-[#202026] text-brand-softIvory rounded-lg border border-brand-border tracking-wider uppercase transition-all shadow-lg flex items-center gap-2">
+        <span>Get Executable</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="max-w-6xl mx-auto px-6 pt-16 pb-24 text-center relative z-10">
+    <div class="animate-slide-up flex flex-col items-center">
+      <!-- Micro Badge -->
+      <div class="px-3 py-1 rounded-full bg-brand-blue/10 border border-brand-blue/20 text-[10px] uppercase tracking-widest text-brand-blue font-bold mb-6 font-mono">
+        🚀 RestMan Standalone 2026 Edition
+      </div>
+      
+      <h1 class="text-4xl sm:text-6xl font-extrabold max-w-4xl leading-[1.1] mb-6 font-display">
+        The Offline-First API Workstation. <br>
+        <span class="bg-gradient-to-r from-brand-softIvory via-[#a8a8b5] to-brand-blue bg-clip-text text-transparent font-black">Zero Tracking. Zero Cloud Lag.</span>
+      </h1>
+      
+      <p class="text-base sm:text-lg text-slate-400 max-w-2xl leading-relaxed mb-10 font-light">
+        A premium desktop client running locally on your computer. Bypasses CORS restrictions naturally, imports Postman backups instantly, and secures all credentials locally on your disk.
+      </p>
+
+      <!-- Primary Action CTAs -->
+      <div id="download" class="flex flex-col sm:flex-row items-center gap-4 mb-16">
+        <a href="https://github.com/whotfiszaar/Restman/releases/latest/download/Restman.exe" download class="interactive-btn px-8 py-4 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl text-sm font-bold transition-all shadow-xl shadow-brand-blue/25 flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-4 h-4">
+            <path d="M0 3.449L9.75 2.1v9.45H0V3.449zM0 12.45h9.75v9.45L0 20.551v-8.1zM11.25 1.899L24 0v11.55H11.25V1.899zM11.25 12.45H24v11.55l-12.75-1.9v-9.65z"/>
+          </svg>
+          <div class="text-left">
+            <div class="text-[10px] uppercase opacity-75 font-mono">Download for Windows</div>
+            <div class="text-xs font-extrabold -mt-0.5">Restman.exe (Standalone)</div>
+          </div>
+        </a>
+
+        <a href="#demo" class="px-6 py-4 bg-[#18181b]/55 hover:bg-[#202026] text-brand-softIvory rounded-xl border border-brand-border text-sm font-semibold tracking-wide transition-all flex items-center gap-2">
+          <span>Interactive App Demo</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-brand-blue animate-pulse">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Product Visual Card Showcase -->
+    <div class="animate-slide-up w-full max-w-5xl mx-auto relative rounded-2xl border border-brand-border bg-brand-charcoal shadow-2xl p-2.5 shadow-brand-blue/5" style="animation-delay: 0.15s;">
+      <div class="absolute inset-0 bg-gradient-to-b from-brand-blue/5 to-transparent rounded-2xl pointer-events-none"></div>
+      
+      <!-- Top Browser bar mockup -->
+      <div class="flex items-center justify-between px-4 py-2 bg-neutral-950/80 rounded-t-xl border-b border-brand-border/40 select-none">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-rose-500/60"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></span>
+        </div>
+        <div class="text-[10px] font-mono tracking-widest text-[#5c6773]">RESTMAN WORKSTATION 2026</div>
+        <div class="w-12"></div>
+      </div>
+
+      <!-- Main Visual Mockup Grid -->
+      <div class="grid grid-cols-12 h-[390px] text-left bg-[#0c0c0e]/95 text-xs select-none">
+        <!-- Sidebar mockup -->
+        <div class="col-span-3 border-r border-brand-border/40 p-3 bg-neutral-950/30 flex flex-col gap-4 font-sans">
+          <div class="flex items-center justify-between text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+            <span>Collections</span>
+            <span class="text-brand-blue font-bold">+ New</span>
+          </div>
+          
+          <div class="flex flex-col gap-2 font-medium">
+            <div class="flex items-center gap-2 text-brand-softIvory p-1.5 rounded bg-brand-border/20 border border-brand-border/30">
+              <span class="text-[9px] font-black text-emerald-400">GET</span>
+              <span class="truncate">Get Products List</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-400 p-1.5 rounded hover:bg-neutral-900/40">
+              <span class="text-[9px] font-black text-indigo-400">POST</span>
+              <span class="truncate">Create User Record</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-400 p-1.5 rounded hover:bg-neutral-900/40">
+              <span class="text-[9px] font-black text-rose-400">DEL</span>
+              <span class="truncate">Delete Comments</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-400 p-1.5 rounded hover:bg-neutral-900/40">
+              <span class="text-[9px] font-black text-amber-400">PUT</span>
+              <span class="truncate">Update Inventory</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Workspace mockup -->
+        <div class="col-span-9 p-4 flex flex-col gap-4">
+          <!-- URL Bar row -->
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-lg uppercase">GET</span>
+            <div class="flex-1 bg-neutral-950 border border-brand-border p-2 rounded-lg text-xs font-mono text-slate-350 truncate">
+              https://api.restman.dev/v1/comments?postId=12&active=true
+            </div>
+            <button class="px-5 py-2 bg-brand-blue hover:bg-brand-blue/90 text-white font-bold rounded-lg text-xs transition-all shadow-md shrink-0">Send</button>
+          </div>
+
+          <!-- Variable tooltip hover mockup -->
+          <div class="border border-brand-border bg-neutral-950 p-3 rounded-lg flex flex-col gap-2 relative">
+            <div class="flex items-center gap-2 text-[10px]">
+              <span class="font-bold text-slate-350">Variable Hover Resolution</span>
+              <span class="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold px-1.5 py-0.5 rounded font-mono">Resolved</span>
+            </div>
+            <div class="font-mono text-slate-400 text-[11px] flex gap-2">
+              <span class="text-brand-gold">${`{baseUrl}`}</span>
+              <span>&rarr;</span>
+              <span class="text-emerald-400 truncate">"https://api.oraclecloud.com/fscmRestApi"</span>
+            </div>
+          </div>
+
+          <!-- Response display mockup -->
+          <div class="flex-1 border border-brand-border bg-neutral-950 rounded-lg p-3 flex flex-col gap-2 overflow-hidden">
+            <div class="flex items-center justify-between border-b border-brand-border/40 pb-2 text-[10px]">
+              <div class="flex gap-2">
+                <span class="font-bold text-[#2ea043]">200 OK</span>
+                <span class="text-[#8b949e]">24 ms</span>
+                <span class="text-[#8b949e]">1.4 KB</span>
+              </div>
+              <span class="font-mono text-[#8b949e]">JSON Explorer Mode</span>
+            </div>
+            <pre class="font-mono text-[10px] text-indigo-300 leading-relaxed overflow-y-auto">
+{
+  <span class="text-slate-400">"success"</span>: true,
+  <span class="text-slate-400">"data"</span>: {
+    <span class="text-slate-400">"message"</span>: <span class="text-brand-gold">"Restman client connection established offline."</span>,
+    <span class="text-slate-400">"latency"</span>: <span class="text-emerald-400">"0ms (Local SQLite Sandbox)"</span>
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Demo Playground -->
+  <section id="demo" class="max-w-5xl mx-auto px-6 py-16 border-t border-brand-border/50 relative z-10">
+    <div class="text-center mb-12">
+      <h2 class="text-2xl sm:text-3xl font-black mb-3">Live Interactive Mock-Builder</h2>
+      <p class="text-slate-400 max-w-xl mx-auto text-xs sm:text-sm">
+        See how RestMan's offline engine instantly compiles request attributes and auto-resolves variables inside the client wrapper.
+      </p>
+    </div>
+
+    <!-- Live Builder Widget -->
+    <div class="glass-panel p-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch font-sans text-xs">
+      
+      <!-- Input Control Side -->
+      <div class="flex flex-col gap-4">
+        <h3 class="font-bold text-sm text-brand-softIvory border-b border-brand-border/40 pb-2">Request Parameters</h3>
+        
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[10px] uppercase font-bold text-slate-500">Method Selection</label>
+          <div class="flex gap-2">
+            <button onclick="setMockMethod('GET', 'emerald')" id="method-GET" class="px-3 py-1.5 rounded-lg border bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-bold transition-all">GET</button>
+            <button onclick="setMockMethod('POST', 'indigo')" id="method-POST" class="px-3 py-1.5 rounded-lg border border-brand-border text-slate-400 font-bold transition-all">POST</button>
+            <button onclick="setMockMethod('DELETE', 'rose')" id="method-DELETE" class="px-3 py-1.5 rounded-lg border border-brand-border text-slate-400 font-bold transition-all">DELETE</button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[10px] uppercase font-bold text-slate-500">Endpoint URL (containing variables)</label>
+          <input type="text" id="mock-url-input" onkeyup="updateMockCompile()" value="${apiBase}/v2/endpoints/comments?id=42" class="w-full bg-[#0c0c0e] border border-brand-border rounded-lg p-2.5 font-mono text-brand-softIvory focus:outline-none focus:border-brand-blue" />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="text-[10px] uppercase font-bold text-slate-500">Global Variables Cache</label>
+          <div class="bg-[#0c0c0e] border border-brand-border rounded-lg p-3 flex flex-col gap-2">
+            <div class="flex gap-2 items-center justify-between">
+              <span class="font-mono text-brand-gold font-bold">${apiBase}</span>
+              <input type="text" id="mock-var-val" onkeyup="updateMockCompile()" value="https://api.allorigins.win/raw" class="bg-brand-charcoal border border-brand-border rounded px-2 py-1 font-mono text-[11px] text-emerald-400 w-48 text-right focus:outline-none focus:border-brand-blue" />
+            </div>
+            <div class="text-[9px] text-slate-500 leading-normal">
+              Change the variable values inside the input to see the compiler resolve the URL query dynamically.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Compiler Preview Side -->
+      <div class="flex flex-col gap-4 bg-brand-charcoal/40 border border-brand-border/40 rounded-xl p-4">
+        <h3 class="font-bold text-sm text-brand-softIvory border-b border-brand-border/40 pb-2 flex items-center justify-between">
+          <span>Active Variable Compiler</span>
+          <span class="text-[9px] bg-brand-blue/15 border border-brand-blue/35 text-brand-blue px-2 py-0.5 rounded font-mono">Offline Engine</span>
+        </h3>
+
+        <!-- Compiled URL Box -->
+        <div class="flex flex-col gap-1.5">
+          <span class="text-[9px] font-bold text-slate-500 uppercase font-mono">Compiled Outgoing Fetch URL</span>
+          <div id="mock-compiled-url" class="p-3 bg-neutral-950 border border-brand-border rounded-lg font-mono text-slate-300 break-all select-all">
+            https://api.allorigins.win/raw/v2/endpoints/comments?id=42
+          </div>
+        </div>
+
+        <!-- Compiled Mock Response Box -->
+        <div class="flex-1 flex flex-col gap-2 mt-2">
+          <span class="text-[9px] font-bold text-slate-500 uppercase font-mono">Simulated JSON Output</span>
+          <div class="flex-1 bg-neutral-950 border border-brand-border rounded-lg p-3 overflow-hidden font-mono text-[11px] leading-relaxed">
+            <pre class="text-[#bd93f9]" id="mock-json-out">
+{
+  "request": {
+    "method": "GET",
+    "target": "/v2/endpoints/comments",
+    "params": { "id": "42" }
+  },
+  "resolvedHost": "api.allorigins.win",
+  "status": "Ready to send"
+}</pre>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Core Core Features -->
+  <section id="features" class="max-w-6xl mx-auto px-6 py-20 border-t border-brand-border/50 relative z-10">
+    <div class="text-center mb-16">
+      <h2 class="text-2xl sm:text-4xl font-black mb-3">Engineered for Performance & Zero Clutter</h2>
+      <p class="text-slate-400 max-w-xl mx-auto text-sm">
+        We stripped away the heavy layers. No user accounts required. No cloud database synchronizers. 100% processing speed.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Card 1 -->
+      <div class="glass-panel p-6 flex flex-col gap-3 hover:border-brand-blue/30 transition-all duration-300">
+        <div class="h-10 w-10 rounded-xl bg-brand-blue/10 flex items-center justify-center text-brand-blue mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="w-5 h-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
+        </div>
+        <h3 class="text-base font-bold">100% Offline Workspace</h3>
+        <p class="text-xs leading-relaxed text-slate-400">
+          All endpoints, parameters, header states, history, and variable maps are written to your local IndexedDB workspace.
+        </p>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="glass-panel p-6 flex flex-col gap-3 hover:border-brand-blue/30 transition-all duration-300">
+        <div class="h-10 w-10 rounded-xl bg-brand-accent/10 flex items-center justify-center text-brand-accent mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="w-5 h-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+          </svg>
+        </div>
+        <h3 class="text-base font-bold">Lightning C# Launcher</h3>
+        <p class="text-xs leading-relaxed text-slate-400">
+          Launches natively under 200ms using a pre-compiled Windows C# wrapper. Bypasses browser sandbox limits automatically.
+        </p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="glass-panel p-6 flex flex-col gap-3 hover:border-brand-blue/30 transition-all duration-300">
+        <div class="h-10 w-10 rounded-xl bg-brand-gold/10 flex items-center justify-center text-brand-gold mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="w-5 h-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z" />
+          </svg>
+        </div>
+        <h3 class="text-base font-bold">CORS Bypass Proxy Mode</h3>
+        <p class="text-xs leading-relaxed text-slate-400">
+          Encountering strict server CORS controls? Switch on the built-in HTTP request forwarder proxy in settings under one click.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- High-level Architecture Design Section -->
+  <section id="architecture" class="max-w-5xl mx-auto px-6 py-16 border-t border-brand-border/50 relative z-10">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+      <div>
+        <h2 class="text-2xl sm:text-3xl font-black mb-4">Direct Sandbox Packaging</h2>
+        <p class="text-xs leading-relaxed text-slate-400 mb-6">
+          Unlike modern heavy electron containers, Restman packages visual scripts into inlined layouts embedded directly inside a lightweight host app.
+        </p>
+        
+        <div class="flex flex-col gap-4 font-mono text-[10.5px]">
+          <div class="flex items-center gap-3">
+            <span class="h-5 w-5 bg-brand-blue/20 rounded border border-brand-blue/30 text-brand-blue flex items-center justify-center font-bold">1</span>
+            <span class="text-brand-softIvory">Vite singlefile bundler compiles entire CSS/JS logic</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="h-5 w-5 bg-brand-blue/20 rounded border border-brand-blue/30 text-brand-blue flex items-center justify-center font-bold">2</span>
+            <span class="text-brand-softIvory">Launcher extracts files into memory sandbox</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="h-5 w-5 bg-brand-blue/20 rounded border border-brand-blue/30 text-brand-blue flex items-center justify-center font-bold">3</span>
+            <span class="text-brand-softIvory">Direct Localhost network dispatcher executes calls</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vector Architecture Chart (CSS/HTML Styled) -->
+      <div class="border border-brand-border rounded-2xl bg-neutral-950 p-5 flex flex-col gap-3 font-mono text-[10px]">
+        <div class="text-center font-bold text-slate-500 uppercase tracking-widest border-b border-brand-border/40 pb-2">Execution Flow</div>
+        
+        <div class="flex flex-col items-center gap-2">
+          <div class="px-4 py-2 border border-[#007acc]/30 bg-[#007acc]/10 text-white rounded-lg w-full text-center">
+            Windows C# Launcher (Restman.exe)
+          </div>
+          <span class="text-slate-650">&darr; Memory decompression</span>
+          <div class="px-4 py-2 border border-brand-border bg-brand-charcoal text-slate-350 rounded-lg w-full text-center">
+            Chromium Embedded Runtime Context
+          </div>
+          <span class="text-slate-650">&darr; Offline resolution</span>
+          <div class="grid grid-cols-2 gap-2 w-full">
+            <div class="p-2 border border-emerald-900/30 bg-emerald-950/10 text-emerald-400 rounded-lg text-center">
+              Local IndexedDB
+            </div>
+            <div class="p-2 border border-amber-900/30 bg-amber-950/10 text-brand-gold rounded-lg text-center font-bold">
+              Variable resolve
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Download Footer CTA -->
+  <section class="max-w-5xl mx-auto px-6 py-20 border-t border-brand-border/50 text-center relative z-10">
+    <div class="flex flex-col items-center">
+      <h2 class="text-3xl font-black mb-4">Start Debugging Faster Today</h2>
+      <p class="text-slate-400 max-w-md text-xs sm:text-sm leading-relaxed mb-8">
+        No email registration. No user credentials requested. Download, double click, and start typing.
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center gap-4">
+        <a href="https://github.com/whotfiszaar/Restman/releases/latest/download/Restman.exe" download class="interactive-btn px-8 py-3.5 bg-brand-blue hover:bg-brand-blue/90 text-white font-bold rounded-xl text-xs tracking-wider uppercase transition-all shadow-xl shadow-brand-blue/20">
+          Get Windows Launcher (Restman.exe)
+        </a>
+      </div>
+
+      <div class="text-[10px] text-slate-500 mt-6 flex gap-4">
+        <span>Tested on Windows 10 & 11</span>
+        <span>•</span>
+        <span>MD5 verified secure</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="w-full border-t border-brand-border/40 py-8 bg-[#070709]/80 text-[11px] font-sans relative z-10 text-center select-none">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="text-slate-500">
+        &copy; 2026 RestMan Studio. Free to use under MIT License.
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="text-slate-300 font-medium">Designed by Akib</span>
+        <!-- LinkedIn -->
+        <a href="https://www.linkedin.com/in/akibkhone/" target="_blank" rel="noopener noreferrer"
+           class="text-slate-500 hover:text-[#0a66c2] transition-colors" title="LinkedIn">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+        </a>
+        <!-- GitHub -->
+        <a href="https://github.com/whotfiszaar/Restman" target="_blank" rel="noopener noreferrer"
+           class="text-slate-500 hover:text-white transition-colors" title="GitHub">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Interactive script for Demo Playground widget -->
+  <script>
+    let mockMethod = 'GET';
+    let mockMethodColor = 'emerald';
+
+    function setMockMethod(method, color) {
+      mockMethod = method;
+      mockMethodColor = color;
+      
+      // Update buttons styling
+      ['GET', 'POST', 'DELETE'].forEach(m => {
+        const btn = document.getElementById(`method-${m}`);
+        if (m === method) {
+          btn.className = `px-3 py-1.5 rounded-lg border bg-${color}-500/10 border-${color}-500/30 text-${color}-400 font-bold transition-all`;
+        } else {
+          btn.className = "px-3 py-1.5 rounded-lg border border-brand-border text-slate-400 font-bold transition-all";
+        }
+      });
+
+      updateMockCompile();
+    }
+
+    function updateMockCompile() {
+      const urlInput = document.getElementById('mock-url-input').value;
+      const varVal = document.getElementById('mock-var-val').value;
+      
+      // Resolve ${apiBase} variable
+      let resolved = urlInput.replace(/\$\{apiBase\}/g, varVal);
+      document.getElementById('mock-compiled-url').innerText = resolved;
+
+      // Extract path and query
+      let path = "/v2/endpoints/comments";
+      let host = "api.allorigins.win";
+      let params = '{ "id": "42" }';
+      
+      try {
+        const urlObj = new URL(resolved);
+        host = urlObj.hostname || "api.allorigins.win";
+        path = urlObj.pathname || "/";
+        const queryObj = {};
+        urlObj.searchParams.forEach((v, k) => {
+          queryObj[k] = v;
+        });
+        params = JSON.stringify(queryObj, null, 2);
+      } catch(e) {}
+
+      // Update mock json out
+      const responseCode = `{\n  "request": {\n    "method": "${mockMethod}",\n    "target": "${path}",\n    "params": ${params.split('\n').join('\n    ')}\n  },\n  "resolvedHost": "${host}",\n  "status": "Ready to send"\n}`;
+      document.getElementById('mock-json-out').innerText = responseCode;
+    }
+
+    // Init
+    updateMockCompile();
+  </script>
+</body>
+</html>
