@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-web/
+release-builds/
+*.log
+.env
+.env.*
+.DS_Store
+renderer-console.log
+desktop/
