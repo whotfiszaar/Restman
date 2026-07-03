@@ -9,3 +9,4 @@ Thumbs.db
 renderer-console.log
 
 dist-web/
+.vercel

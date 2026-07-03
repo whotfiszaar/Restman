@@ -1,12 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { db, type Collection, type Folder, type RequestItem } from "../db/db";
-import { importPostmanCollection } from "../utils/postmanImporter";
 import { exportPostmanCollection } from "../utils/postmanExporter";
 import { useLiveQuery } from "dexie-react-hooks";
 import ModernConfirmModal from "./ModernConfirmModal";
 import {
-  Folder as FolderIcon,
-  FolderOpen,
   Plus,
   FolderPlus,
   MoreVertical,
@@ -19,12 +16,6 @@ import {
   Copy,
   Edit3,
   Upload,
-  Layers,
-  Check,
-  AlertCircle,
-  Settings,
-  Loader2,
-  RefreshCw,
   FolderDown,
   X
 } from "lucide-react";
@@ -52,13 +43,13 @@ interface CollectionSidebarProps {
   activeRequestId: string | null;
   onSelectRequest: (id: string) => void;
   onOpenVariables: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (tab?: "general" | "themes" | "shortcuts" | "about" | "import") => void;
 }
 
 export default function CollectionSidebar({
   activeRequestId,
   onSelectRequest,
-  onOpenVariables,
+  onOpenVariables: _onOpenVariables,
   onOpenSettings
 }: CollectionSidebarProps) {
   // DB Subscriptions
@@ -84,20 +75,6 @@ export default function CollectionSidebar({
     defaultValue: string;
     onConfirm: (val: string) => void;
   } | null>(null);
-
-  // Import State
-  const [importOpen, setImportOpen] = useState(false);
-  const [importJson, setImportJson] = useState("");
-  const [importMsg, setImportMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // One-Click Import states
-  const [importTab, setImportTab] = useState<"auto" | "manual">("auto");
-  const [discovered, setDiscovered] = useState<DiscoveredCollection[]>([]);
-  const [scanning, setScanning] = useState(false);
-  const [hasScanned, setHasScanned] = useState(false);
-  const [selectedDiscoveredPaths, setSelectedDiscoveredPaths] = useState<Record<string, boolean>>({});
 
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -486,171 +463,6 @@ export default function CollectionSidebar({
     setRenameVal("");
   };
 
-  // One-Click Scanning handler
-  const handleScanLocalCollections = async () => {
-    if (!window.electronAPI?.scanPostman) return;
-    setScanning(true);
-    setImportMsg(null);
-    setDiscovered([]);
-    setHasScanned(false);
-    try {
-      const results = await window.electronAPI.scanPostman();
-      setDiscovered(results);
-      // Pre-select all found collections
-      const selection: Record<string, boolean> = {};
-      results.forEach((col) => {
-        selection[col.filePath] = true;
-      });
-      setSelectedDiscoveredPaths(selection);
-      setHasScanned(true);
-      if (results.length === 0) {
-        setImportMsg({
-          type: "error",
-          text: "No Postman collections or backups were found in your standard system folders."
-        });
-      } else {
-        setImportMsg({
-          type: "success",
-          text: `Discovered ${results.length} local Postman collections!`
-        });
-      }
-    } catch (err: any) {
-      console.error("Scan error:", err);
-      setImportMsg({
-        type: "error",
-        text: err.message || "An error occurred during directory scanning."
-      });
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  // Bulk import selected collections
-  const handleImportDiscovered = async () => {
-    const toImport = discovered.filter((col) => selectedDiscoveredPaths[col.filePath]);
-    if (toImport.length === 0) {
-      setImportMsg({
-        type: "error",
-        text: "Please select at least one collection to import."
-      });
-      return;
-    }
-
-    setScanning(true);
-    let successCount = 0;
-    let totalReqs = 0;
-    let totalFolders = 0;
-    let lastError = "";
-
-    for (const col of toImport) {
-      try {
-        const result = await importPostmanCollection(col.content);
-        if (result.success) {
-          successCount++;
-          totalReqs += result.requestsCount || 0;
-          totalFolders += result.foldersCount || 0;
-        } else {
-          lastError = result.error || "Format issue";
-        }
-      } catch (err: any) {
-        lastError = err.message || "Parse error";
-      }
-    }
-
-    setScanning(false);
-    if (successCount > 0) {
-      setImportMsg({
-        type: "success",
-        text: `Successfully imported ${successCount} collection(s)! (${totalReqs} requests, ${totalFolders} folders)`
-      });
-      setDiscovered([]);
-      setHasScanned(false);
-      setTimeout(() => {
-        setImportOpen(false);
-        setImportMsg(null);
-      }, 3000);
-    } else {
-      setImportMsg({
-        type: "error",
-        text: lastError || "Failed to import the selected collections."
-      });
-    }
-  };
-
-  // Import Collection Logic
-  const handleImportCollection = async () => {
-    if (!importJson.trim()) return;
-    const result = await importPostmanCollection(importJson);
-    if (result.success) {
-      setImportMsg({
-        type: "success",
-        text: `Successfully imported "${result.collectionName}"! (${result.requestsCount} requests, ${result.foldersCount} folders)`,
-      });
-      setImportJson("");
-      setTimeout(() => {
-        setImportOpen(false);
-        setImportMsg(null);
-      }, 3000);
-    } else {
-      setImportMsg({
-        type: "error",
-        text: result.error || "Failed to parse Postman collection.",
-      });
-    }
-  };
-
-  const processFiles = async (files: File[]) => {
-    let successCount = 0;
-    let totalReqs = 0;
-    let totalFolders = 0;
-    let lastError = "";
-    let lastCollectionName = "";
-
-    for (const file of files) {
-      if (file.name.endsWith(".json") || file.type === "application/json") {
-        try {
-          const text = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target?.result as string);
-            reader.onerror = (err) => reject(err);
-            reader.readAsText(file);
-          });
-
-          const result = await importPostmanCollection(text);
-          if (result.success) {
-            successCount++;
-            totalReqs += result.requestsCount || 0;
-            totalFolders += result.foldersCount || 0;
-            lastCollectionName = result.collectionName || "";
-          } else {
-            lastError = result.error || "Failed to parse Postman collection.";
-          }
-        } catch (err: any) {
-          lastError = err.message || "Failed to read file.";
-        }
-      }
-    }
-
-    if (successCount > 0) {
-      setImportMsg({
-        type: "success",
-        text: `Successfully imported ${successCount} collection(s)! ${
-          successCount === 1 ? `"${lastCollectionName}"` : ""
-        } (${totalReqs} requests, ${totalFolders} folders)`,
-      });
-      setImportJson("");
-      setTimeout(() => {
-        setImportOpen(false);
-        setImportMsg(null);
-      }, 3000);
-    } else {
-      setImportMsg({
-        type: "error",
-        text: lastError || "No valid JSON Postman collections were imported.",
-      });
-    }
-  };
-
   // Render recursion for folders and requests
   const renderTreeFolder = (folder: Folder, depth: number) => {
     const isExpanded = !!expandedNodes[folder.id];
@@ -911,8 +723,7 @@ export default function CollectionSidebar({
     setIsSidebarDragging(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      setImportOpen(true);
-      processFiles(files);
+      onOpenSettings("import");
     }
   };
 
@@ -921,10 +732,10 @@ export default function CollectionSidebar({
       onDragOver={handleSidebarDragOver}
       onDragLeave={handleSidebarDragLeave}
       onDrop={handleSidebarDrop}
-      className="flex flex-col h-full bg-neutral-950 border-r border-neutral-800 text-neutral-200 relative"
+      className="flex flex-col h-full bg-sidebar-bg border-r border-sidebar-border text-sidebar-text relative font-sans"
     >
       {isSidebarDragging && (
-        <div className="absolute inset-0 bg-neutral-950/90 z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#007acc] p-4 text-center pointer-events-none animate-fade-in font-sans">
+        <div className="absolute inset-0 bg-[#151515]/90 z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#007acc] p-4 text-center pointer-events-none animate-fade-in font-sans">
           <Upload className="h-8 w-8 text-[#007acc] mb-2 animate-bounce" />
           <p className="text-xs font-bold text-white">Drop Collections Here</p>
           <p className="text-[10px] text-neutral-500 mt-1">Import multiple Postman JSON files instantly</p>
@@ -933,29 +744,28 @@ export default function CollectionSidebar({
       {/* Top Identity bar (frameless draggable, unified dark styling) */}
       <div 
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-        className="px-3 border-b border-neutral-800 bg-neutral-950 flex items-center justify-between shrink-0 h-[41px] select-none"
+        className="px-3 border-b border-sidebar-border bg-sidebar-bg flex items-center justify-between shrink-0 h-[41px] select-none"
       >
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {/* CRED-style minimal stacked-lines icon */}
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ color: 'var(--accent-color)' }}>
-            <line x1="2" y1="4" x2="14" y2="4"/>
-            <line x1="2" y1="8" x2="11" y2="8"/>
-            <line x1="2" y1="12" x2="14" y2="12"/>
+          {/* Official Restman R logo */}
+          <svg viewBox="0 0 100 100" className="h-4.5 w-4.5 shrink-0">
+            <rect width="100" height="100" rx="22" fill="var(--accent-color)"/>
+            <text y="72" x="26" fontFamily="sans-serif" fontSize="62" fontWeight="900" fill="#ffffff">R</text>
           </svg>
-          <span className="text-[11px] font-black tracking-widest text-neutral-200 uppercase font-sans">RestMan</span>
+          <span className="text-[11px] font-black tracking-widest text-sidebar-text uppercase font-sans">RestMan</span>
         </div>
       </div>
 
       {/* Global Search Bar */}
-      <div className="p-2 border-b border-neutral-800 shrink-0">
+      <div className="p-2 border-b border-sidebar-border shrink-0">
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-neutral-500" />
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-sidebar-text-muted" />
           <input
             type="text"
             placeholder="Search API endpoints (Ctrl+Shift+F)"
             value={localSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors"
+            className="w-full bg-sidebar-bg border border-sidebar-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-sidebar-text placeholder-sidebar-text-muted focus:outline-none focus:border-brand-blue transition-colors font-sans"
           />
         </div>
       </div>
@@ -1154,259 +964,15 @@ export default function CollectionSidebar({
       </div>
 
       {/* bottom importer trigger */}
-      <div className="p-3 border-t border-neutral-800 bg-neutral-950/40 shrink-0">
+      <div className="p-3 border-t border-sidebar-border bg-sidebar-bg/40 shrink-0">
         <button
-          onClick={() => setImportOpen(!importOpen)}
-          className="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-neutral-400 hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          onClick={() => onOpenSettings("import")}
+          className="w-full rounded-lg border border-sidebar-border hover:border-neutral-700 bg-sidebar-bg px-3 py-2 text-xs font-semibold text-sidebar-text-muted hover:text-sidebar-text flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
           <Upload className="h-3.5 w-3.5 text-indigo-400 animate-bounce" />
           <span>Import Postman Collection</span>
         </button>
       </div>
-
-      {/* Importer Modal Overlay */}
-      {importOpen && (
-        <div 
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDraggingFile(true);
-          }}
-          onDragLeave={() => setIsDraggingFile(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDraggingFile(false);
-            const files = Array.from(e.dataTransfer.files);
-            if (files.length > 0) {
-              processFiles(files);
-            }
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
-        >
-          <div className={`w-full max-w-lg rounded-xl border p-5 shadow-2xl text-neutral-200 flex flex-col gap-4 transition-all duration-150 ${
-            isDraggingFile ? "drag-active border-[#007acc] scale-[1.02] bg-[#181818]/95" : "border-neutral-800 bg-neutral-950"
-          }`}>
-            <div className="flex items-center justify-between border-b border-neutral-900 pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Upload className="h-4 w-4 text-indigo-400" />
-                Import Postman Collections
-              </h3>
-              <button
-                onClick={() => {
-                  setImportOpen(false);
-                  setImportMsg(null);
-                }}
-                className="rounded-lg p-1 hover:bg-neutral-900 text-neutral-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <Plus className="h-4 w-4 transform rotate-45" />
-              </button>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex border-b border-neutral-900 mt-1">
-              <button
-                onClick={() => {
-                  setImportTab("auto");
-                  setImportMsg(null);
-                }}
-                className={`px-4 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
-                  importTab === "auto"
-                    ? "border-indigo-500 text-indigo-400"
-                    : "border-transparent text-neutral-400 hover:text-neutral-200"
-                }`}
-              >
-                1-Click Browser-Style Sync
-              </button>
-              <button
-                onClick={() => {
-                  setImportTab("manual");
-                  setImportMsg(null);
-                }}
-                className={`px-4 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
-                  importTab === "manual"
-                    ? "border-indigo-500 text-indigo-400"
-                    : "border-transparent text-neutral-400 hover:text-neutral-200"
-                }`}
-              >
-                Upload / Paste Files
-              </button>
-            </div>
-
-            {importTab === "auto" ? (
-              <div className="flex flex-col gap-3 py-1">
-                <p className="text-[11px] text-neutral-400 leading-relaxed font-sans">
-                  RestMan will scan your local computer (AppData folder, Downloads, and Documents) to automatically detect active Postman app databases, collections, and backups, sync-ing them in one click.
-                </p>
-
-                {window.electronAPI?.isElectron ? (
-                  <>
-                    {!hasScanned && !scanning && (
-                      <button
-                        onClick={handleScanLocalCollections}
-                        className="w-full py-6 rounded-lg border border-neutral-850 hover:border-neutral-700 bg-neutral-950 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:bg-neutral-900/50"
-                      >
-                        <FolderDown className="h-6 w-6 text-indigo-400 animate-bounce" />
-                        <span className="text-xs font-bold text-neutral-200">Scan My PC for Postman Collections</span>
-                        <span className="text-[10px] text-neutral-500">Searches AppData, Downloads, & Documents</span>
-                      </button>
-                    )}
-
-                    {scanning && (
-                      <div className="py-8 text-center flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-                        <span className="text-xs font-semibold text-neutral-300 font-sans">Searching local filesystem...</span>
-                      </div>
-                    )}
-
-                    {hasScanned && !scanning && discovered.length > 0 && (
-                      <div className="flex flex-col gap-3 font-sans">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Detected Collections</span>
-                          <button
-                            onClick={handleScanLocalCollections}
-                            className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
-                          >
-                            <RefreshCw className="h-2.5 w-2.5" />
-                            <span>Rescan</span>
-                          </button>
-                        </div>
-
-                        <div className="max-h-52 overflow-y-auto border border-neutral-900 rounded-lg p-1.5 bg-neutral-950/60 flex flex-col gap-1.5 scrollbar-thin">
-                          {discovered.map((col) => (
-                            <label
-                              key={col.filePath}
-                              className="flex items-start gap-2.5 p-2 hover:bg-neutral-900/60 rounded-lg transition-colors cursor-pointer text-xs"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={!!selectedDiscoveredPaths[col.filePath]}
-                                onChange={(e) => {
-                                  setSelectedDiscoveredPaths((prev) => ({
-                                    ...prev,
-                                    [col.filePath]: e.target.checked
-                                  }));
-                                }}
-                                className="mt-0.5 accent-indigo-500 rounded border-neutral-850 focus:ring-indigo-500 bg-neutral-950"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-neutral-200 truncate">{col.collectionName}</div>
-                                <div className="text-[9px] text-neutral-500 truncate mt-0.5 font-mono">{col.filePath}</div>
-                                <div className="text-[9px] text-indigo-400/90 font-semibold mt-1 flex gap-2">
-                                  <span>{col.requestsCount} requests</span>
-                                  <span>•</span>
-                                  <span>{col.foldersCount} folders</span>
-                                </div>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-
-                        <button
-                          onClick={handleImportDiscovered}
-                          disabled={scanning || discovered.filter((c) => selectedDiscoveredPaths[c.filePath]).length === 0}
-                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                          <span>Import Selected Collections</span>
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="border border-indigo-950/50 bg-indigo-950/10 rounded-lg p-5 text-center mt-1 font-sans">
-                    <Layers className="h-8 w-8 text-indigo-400 mx-auto mb-2.5 animate-pulse" />
-                    <h4 className="text-xs font-bold text-white mb-1.5">Standalone Feature Available</h4>
-                    <p className="text-[11px] text-neutral-400 leading-relaxed max-w-sm mx-auto mb-4">
-                      This one-click browser-style auto-import requires direct filesystem access. Install the RestMan standalone desktop client to automatically scan your PC and sync Postman.
-                    </p>
-                    <button
-                      onClick={() => window.open("https://github.com/akibkhan/restman", "_blank")}
-                      className="px-3.5 py-1.5 rounded-lg border border-indigo-500/30 hover:border-indigo-500/80 bg-indigo-500/10 text-[10px] font-semibold text-indigo-300 hover:text-white transition-all cursor-pointer"
-                    >
-                      Download Desktop Client
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="font-sans">
-                <p className="text-[11px] text-neutral-400 leading-relaxed mb-3">
-                  Paste the raw JSON content or **click the box below to upload multiple files (or drag and drop multiple JSON files)**. RestMan will recursively import folders, headers, methods, variables, and API requests instantly.
-                </p>
-                
-                {/* Drag and Drop visual target zone (with hidden input triggering) */}
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-lg p-6 mb-3 text-center cursor-pointer transition-all duration-150 ${
-                    isDraggingFile 
-                      ? "border-[#007acc] bg-[#007acc]/10 text-white" 
-                      : "border-neutral-850 hover:border-neutral-700 text-neutral-500 hover:text-neutral-400"
-                  }`}
-                >
-                  <Upload className="h-5 w-5 mx-auto mb-1.5 text-neutral-600" />
-                  <p className="text-xs font-semibold">Click to upload or Drag & Drop Postman files here</p>
-                  <p className="text-[10px] text-neutral-600 mt-0.5">Supports uploading multiple v2 & v2.1 JSON files</p>
-                </div>
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  multiple
-                  accept=".json,application/json"
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      processFiles(Array.from(e.target.files));
-                    }
-                  }}
-                  className="hidden"
-                />
-
-                <textarea
-                  placeholder='Or paste raw JSON here (e.g., {"info": { "name": "My Workspace", ... }})'
-                  value={importJson}
-                  onChange={(e) => setImportJson(e.target.value)}
-                  className="w-full h-28 bg-neutral-950 border border-neutral-900 rounded-lg p-3 text-xs font-mono text-neutral-300 focus:outline-none focus:border-indigo-500 scrollbar-thin"
-                />
-              </div>
-            )}
-
-            {importMsg && (
-              <div
-                className={`p-2.5 rounded border text-xs flex items-center gap-2 font-sans ${
-                  importMsg.type === "success"
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                    : "bg-red-500/10 border-red-500/20 text-red-400"
-                }`}
-              >
-                {importMsg.type === "success" ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                <span>{importMsg.text}</span>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 border-t border-neutral-900 pt-3 font-sans">
-              <button
-                onClick={() => {
-                  setImportOpen(false);
-                  setImportMsg(null);
-                  setDiscovered([]);
-                  setHasScanned(false);
-                }}
-                className="px-3.5 py-2 rounded-lg bg-neutral-900 hover:bg-neutral-850 text-xs font-semibold cursor-pointer transition-colors"
-              >
-                Cancel
-              </button>
-              {importTab === "manual" && (
-                <button
-                  onClick={handleImportCollection}
-                  disabled={!importJson.trim()}
-                  className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Import Workspace
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Custom Modern Confirm Modal */}
       {confirmState && (

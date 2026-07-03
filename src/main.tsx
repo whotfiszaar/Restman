@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";

@@ -10,7 +10,12 @@
 
 /* Default Theme: Dark (VS Code Dark Modern / Postman Dark) */
 :root {
-  --sidebar-bg: #181818;
+  --sidebar-bg: #151515;
+  --sidebar-text: #e1e1e1;
+  --sidebar-text-muted: #858585;
+  --sidebar-border: #2d2d2d;
+  --sidebar-selection: #252526;
+
   --app-bg: #1e1e1e;
   --tab-inactive-bg: #181818;
   --border-color: #2d2d2d;
@@ -33,7 +38,13 @@
 
 /* Theme definitions */
 [data-theme="light"] {
-  --sidebar-bg: #f0f0f0;
+  /* Keep sidebar dark with high contrast text in light theme */
+  --sidebar-bg: #151515;
+  --sidebar-text: #e1e1e1;
+  --sidebar-text-muted: #858585;
+  --sidebar-border: #2d2d2d;
+  --sidebar-selection: #252526;
+
   --app-bg: #fafafa;
   --tab-inactive-bg: #e8e8e8;
   --border-color: #d4d4d8;
@@ -47,6 +58,11 @@
 
 [data-theme="dracula"] {
   --sidebar-bg: #1e1f29;
+  --sidebar-text: #f8f8f2;
+  --sidebar-text-muted: #6272a4;
+  --sidebar-border: #44475a;
+  --sidebar-selection: #44475a;
+
   --app-bg: #282a36;
   --tab-inactive-bg: #21222c;
   --border-color: #44475a;
@@ -60,6 +76,11 @@
 
 [data-theme="monokai"] {
   --sidebar-bg: #191919;
+  --sidebar-text: #f8f8f2;
+  --sidebar-text-muted: #75715e;
+  --sidebar-border: #3e3d32;
+  --sidebar-selection: #49483e;
+
   --app-bg: #272822;
   --tab-inactive-bg: #222222;
   --border-color: #3e3d32;
@@ -73,6 +94,11 @@
 
 [data-theme="ayu-dark"] {
   --sidebar-bg: #0a0e14;
+  --sidebar-text: #e6b450;
+  --sidebar-text-muted: #5c6773;
+  --sidebar-border: #1a232c;
+  --sidebar-selection: #253340;
+
   --app-bg: #0f1419;
   --tab-inactive-bg: #121820;
   --border-color: #1a232c;
@@ -86,6 +112,11 @@
 
 [data-theme="solarized-dark"] {
   --sidebar-bg: #002b36;
+  --sidebar-text: #93a1a1;
+  --sidebar-text-muted: #586e75;
+  --sidebar-border: #586e75;
+  --sidebar-selection: #073642;
+
   --app-bg: #073642;
   --tab-inactive-bg: #00212b;
   --border-color: #586e75;
@@ -113,6 +144,12 @@
   
   --color-brand-blue: var(--accent-color);
   --color-brand-blue-hover: var(--accent-hover-color);
+
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-text-muted: var(--sidebar-text-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-selection: var(--sidebar-selection);
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', 'Courier New', monospace;

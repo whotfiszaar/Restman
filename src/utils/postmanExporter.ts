@@ -1,4 +1,4 @@
-import { db, type Collection, type Folder, type RequestItem } from "../db/db";
+import { db, type RequestItem } from "../db/db";
 
 /**
  * Helper to convert standard ${var} format to Postman double curly brace {{var}} format.

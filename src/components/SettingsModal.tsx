@@ -1,6 +1,7 @@
-import { X, Terminal, Settings, HelpCircle, Sun, Info, ShieldCheck, Check } from "lucide-react";
-import { useState, useEffect } from "react";
+import { X, Terminal, Settings, HelpCircle, Sun, Info, ShieldCheck, Check, Type, FolderDown, Loader2, RefreshCw, AlertCircle, Layers, Upload } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "../db/db";
+import { importPostmanCollection } from "../utils/postmanImporter";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -11,6 +12,10 @@ interface SettingsModalProps {
   onProxyChange: (val: boolean) => void;
   proxyUrl: string;
   onProxyUrlChange: (val: string) => void;
+  fontFamily: string;
+  onFontFamilyChange: (font: string) => void;
+  initialTab?: "general" | "themes" | "shortcuts" | "about" | "import";
+  onTabChange?: (tab: "general" | "themes" | "shortcuts" | "about" | "import") => void;
 }
 
 const THEMES = [
@@ -70,6 +75,19 @@ const THEMES = [
   },
 ];
 
+const FONT_OPTIONS = [
+  { name: "Inter (Corporate Standard)", value: "'Inter', sans-serif" },
+  { name: "Roboto (Minimal & Clean)", value: "'Roboto', sans-serif" },
+  { name: "Open Sans (Professional)", value: "'Open Sans', sans-serif" },
+  { name: "Lato (Warm Minimalist)", value: "'Lato', sans-serif" },
+  { name: "Montserrat (Modern & Sleek)", value: "'Montserrat', sans-serif" },
+  { name: "Nunito Sans (Friendly)", value: "'Nunito Sans', sans-serif" },
+  { name: "Work Sans (Technical & Minimal)", value: "'Work Sans', sans-serif" },
+  { name: "Plus Jakarta Sans (Corporate Tech)", value: "'Plus Jakarta Sans', sans-serif" },
+  { name: "Outfit (Premium & Elegant)", value: "'Outfit', sans-serif" },
+  { name: "System Sans-Serif (Standard)", value: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+];
+
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -79,12 +97,208 @@ export default function SettingsModal({
   onProxyChange,
   proxyUrl,
   onProxyUrlChange,
+  fontFamily,
+  onFontFamilyChange,
+  initialTab,
+  onTabChange,
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"general" | "themes" | "shortcuts" | "about">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "themes" | "shortcuts" | "about" | "import">("general");
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
+
+  useEffect(() => {
+    if (onTabChange) {
+      onTabChange(activeTab);
+    }
+  }, [activeTab, onTabChange]);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Import / Sync States
+  const [importTab, setImportTab] = useState<"auto" | "manual">("manual");
+  const [scanning, setScanning] = useState(false);
+  const [discovered, setDiscovered] = useState<any[]>([]);
+  const [selectedDiscoveredPaths, setSelectedDiscoveredPaths] = useState<Record<string, boolean>>({});
+  const [importMsg, setImportMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [importJson, setImportJson] = useState("");
+  const abortSyncRef = useRef<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // One-Click Scanning handler
+  const handleScanLocalCollections = async () => {
+    if (!window.electronAPI?.scanPostman) return;
+    setScanning(true);
+    setImportMsg(null);
+    setDiscovered([]);
+    abortSyncRef.current = false;
+    try {
+      const results = await window.electronAPI.scanPostman();
+      if (abortSyncRef.current) {
+        setImportMsg({
+          type: "error",
+          text: "Scan interrupted by user."
+        });
+        return;
+      }
+      setDiscovered(results);
+      // Pre-select all found collections
+      const selection: Record<string, boolean> = {};
+      results.forEach((col) => {
+        selection[col.filePath] = true;
+      });
+      setSelectedDiscoveredPaths(selection);
+      if (results.length === 0) {
+        setImportMsg({
+          type: "error",
+          text: "No Postman collections or backups were found in your standard system folders."
+        });
+      } else {
+        setImportMsg({
+          type: "success",
+          text: `Discovered ${results.length} local Postman collections!`
+        });
+      }
+    } catch (err: any) {
+      if (abortSyncRef.current) return;
+      console.error("Scan error:", err);
+      setImportMsg({
+        type: "error",
+        text: err.message || "An error occurred during directory scanning."
+      });
+    } finally {
+      if (!abortSyncRef.current) {
+        setScanning(false);
+      }
+    }
+  };
+
+  // Bulk import selected collections
+  const handleImportDiscovered = async () => {
+    const toImport = discovered.filter((col) => selectedDiscoveredPaths[col.filePath]);
+    if (toImport.length === 0) {
+      setImportMsg({
+        type: "error",
+        text: "Please select at least one collection to import."
+      });
+      return;
+    }
+
+    setScanning(true);
+    abortSyncRef.current = false;
+    let successCount = 0;
+    let totalReqs = 0;
+    let totalFolders = 0;
+    let lastError = "";
+
+    for (const col of toImport) {
+      if (abortSyncRef.current) {
+        lastError = "Import interrupted by user.";
+        break;
+      }
+      try {
+        const result = await importPostmanCollection(col.content);
+        if (result.success) {
+          successCount++;
+          totalReqs += result.requestsCount || 0;
+          totalFolders += result.foldersCount || 0;
+        } else {
+          lastError = result.error || "Format issue";
+        }
+      } catch (err: any) {
+        lastError = err.message || "Parse error";
+      }
+    }
+
+    setScanning(false);
+    if (successCount > 0) {
+      setImportMsg({
+        type: "success",
+        text: `Successfully imported ${successCount} collection(s)! (${totalReqs} requests, ${totalFolders} folders)${abortSyncRef.current ? " (Interrupted)" : ""}`
+      });
+      setDiscovered([]);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } else {
+      setImportMsg({
+        type: "error",
+        text: lastError || "Failed to import the selected collections."
+      });
+    }
+  };
+
+  // Import Collection Logic
+  const handleImportCollection = async () => {
+    if (!importJson.trim()) return;
+    const result = await importPostmanCollection(importJson);
+    if (result.success) {
+      setImportMsg({
+        type: "success",
+        text: `Successfully imported "${result.collectionName}"! (${result.requestsCount} requests, ${result.foldersCount} folders)`,
+      });
+      setImportJson("");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } else {
+      setImportMsg({
+        type: "error",
+        text: result.error || "Failed to parse Postman collection.",
+      });
+    }
+  };
+
+  const processFiles = async (files: File[]) => {
+    let successCount = 0;
+    let totalReqs = 0;
+    let totalFolders = 0;
+    let lastError = "";
+
+    for (const file of files) {
+      if (file.name.endsWith(".json") || file.type === "application/json") {
+        try {
+          const text = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = (err) => reject(err);
+            reader.readAsText(file);
+          });
+
+          const result = await importPostmanCollection(text);
+          if (result.success) {
+            successCount++;
+            totalReqs += result.requestsCount || 0;
+            totalFolders += result.foldersCount || 0;
+          } else {
+            lastError = result.error || "Failed to parse Postman collection.";
+          }
+        } catch (err: any) {
+          lastError = err.message || "Failed to read file.";
+        }
+      }
+    }
+
+    if (successCount > 0) {
+      setImportMsg({
+        type: "success",
+        text: `Successfully imported ${successCount} collection(s)! (${totalReqs} requests, ${totalFolders} folders)`
+      });
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } else {
+      setImportMsg({
+        type: "error",
+        text: lastError || "No valid JSON collections were imported."
+      });
+    }
+  };
 
   const handleDeleteAll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +374,16 @@ export default function SettingsModal({
           </button>
 
           <button
+            onClick={() => setActiveTab("import")}
+            className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+              activeTab === "import" ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900"
+            }`}
+          >
+            <Upload className="h-3.5 w-3.5 text-indigo-400" />
+            <span>Import / Sync</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab("shortcuts")}
             className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
               activeTab === "shortcuts" ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900"
@@ -187,6 +411,7 @@ export default function SettingsModal({
             <h3 className="text-sm font-bold text-white capitalize">
               {activeTab === "general" && "General & Network Settings"}
               {activeTab === "themes" && "Visual Theme Selection"}
+              {activeTab === "import" && "Import Postman Collections"}
               {activeTab === "shortcuts" && "Keyboard Shortcuts"}
               {activeTab === "about" && "About RestMan Studio"}
             </h3>
@@ -252,6 +477,39 @@ export default function SettingsModal({
                       </span>
                     </div>
                   )}
+                </div>
+
+                {/* WORKSPACE TYPOGRAPHY STYLE */}
+                <div className="border-t border-neutral-900/60 pt-4 flex flex-col gap-3">
+                  <h4 className="font-semibold text-white flex items-center gap-1.5 font-sans">
+                    <Type className="h-4 w-4 text-brand-blue" />
+                    Workspace Typography Style
+                  </h4>
+                  <p className="text-[10px] text-neutral-500 leading-relaxed font-sans font-normal">
+                    Choose from the top 10 best professional corporate minimal fonts. The selected font family will adapt globally across the workspace.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {FONT_OPTIONS.map((f) => {
+                      const isSelected = fontFamily === f.value;
+                      return (
+                        <button
+                          key={f.value}
+                          type="button"
+                          onClick={() => onFontFamilyChange(f.value)}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-left cursor-pointer transition-all duration-150 ${
+                            isSelected 
+                              ? "bg-neutral-900 border-brand-blue text-white ring-1 ring-brand-blue/20" 
+                              : "bg-neutral-950/40 border-neutral-850 text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900"
+                          }`}
+                          style={{ fontFamily: f.value }}
+                        >
+                          <span className="text-xs font-normal">{f.name}</span>
+                          {isSelected && <Check className="h-3 w-3 text-brand-blue" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* DANGER ZONE */}
@@ -348,6 +606,215 @@ export default function SettingsModal({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* IMPORT TAB */}
+            {activeTab === "import" && (
+              <div className="flex flex-col gap-4">
+                <p className="text-[11px] text-neutral-400 font-sans">
+                  Import Postman Collections or environment files to populate your local workspace database.
+                </p>
+
+                {/* Sub tabs inside Import tab */}
+                <div className="flex items-center gap-1 border-b border-neutral-900 pb-1 text-[11px] font-semibold shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportTab("manual");
+                      setImportMsg(null);
+                    }}
+                    className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                      importTab === "manual"
+                        ? "bg-neutral-800 text-white font-bold"
+                        : "text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900"
+                    }`}
+                  >
+                    Upload / Paste Files
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportTab("auto");
+                      setImportMsg(null);
+                    }}
+                    className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                      importTab === "auto"
+                        ? "bg-neutral-800 text-white font-bold"
+                        : "text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900"
+                    }`}
+                  >
+                    Directory PC Scan
+                  </button>
+                </div>
+
+                {importTab === "manual" ? (
+                  <div className="flex flex-col gap-3 font-sans">
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full py-8 border-2 border-dashed border-neutral-850 hover:border-neutral-700 bg-neutral-950/20 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <Upload className="h-6 w-6 text-indigo-400 animate-pulse" />
+                        <span className="text-xs font-semibold text-neutral-250">Select Postman JSON files to upload</span>
+                        <span className="text-[10px] text-neutral-500">Supports v2 and v2.1 collections (.json)</span>
+                      </button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        multiple
+                        accept=".json,application/json"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            processFiles(Array.from(e.target.files));
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider font-mono">
+                        Or Paste Raw Collection JSON content
+                      </label>
+                      <textarea
+                        placeholder='Paste raw JSON here (e.g., {"info": { "name": "My Workspace", ... }})'
+                        value={importJson}
+                        onChange={(e) => setImportJson(e.target.value)}
+                        className="w-full h-28 bg-neutral-950 border border-neutral-800 rounded-lg p-3 text-xs font-mono text-neutral-300 focus:outline-none focus:border-indigo-500 scrollbar-thin resize-none"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={handleImportCollection}
+                        disabled={!importJson.trim()}
+                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Import Paste Content
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 font-sans">
+                    <p className="text-[11px] text-neutral-400 leading-relaxed font-sans">
+                      RestMan will scan standard folders (AppData, Downloads, and Documents) to automatically detect Postman backups and collections, sync-ing them locally.
+                    </p>
+
+                    {window.electronAPI?.isElectron ? (
+                      <>
+                        {!discovered.length && !scanning && (
+                          <button
+                            type="button"
+                            onClick={handleScanLocalCollections}
+                            className="w-full py-6 rounded-lg border border-neutral-850 hover:border-neutral-700 bg-neutral-950 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:bg-neutral-900/50"
+                          >
+                            <FolderDown className="h-6 w-6 text-indigo-400 animate-bounce" />
+                            <span className="text-xs font-bold text-neutral-200">Scan My PC for Postman Collections</span>
+                          </button>
+                        )}
+
+                        {scanning && (
+                          <div className="py-8 text-center flex flex-col items-center justify-center gap-3">
+                            <Loader2 className="h-7 w-7 animate-spin text-indigo-400" />
+                            <span className="text-xs font-semibold text-neutral-300">Searching local filesystems...</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                abortSyncRef.current = true;
+                                setScanning(false);
+                                setImportMsg({ type: "error", text: "Directory scan interrupted." });
+                              }}
+                              className="px-3 py-1 bg-red-950/80 hover:bg-red-900 border border-red-900/20 text-red-200 rounded text-[10px] font-semibold cursor-pointer transition-all"
+                            >
+                              Stop / Interrupt Scan
+                            </button>
+                          </div>
+                        )}
+
+                        {!scanning && discovered.length > 0 && (
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Detected Collections</span>
+                              <button
+                                type="button"
+                                onClick={handleScanLocalCollections}
+                                className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                              >
+                                <RefreshCw className="h-2.5 w-2.5" />
+                                <span>Rescan</span>
+                              </button>
+                            </div>
+
+                            <div className="max-h-36 overflow-y-auto border border-neutral-900 rounded-lg p-1.5 bg-neutral-950/60 flex flex-col gap-1.5 scrollbar-thin">
+                              {discovered.map((col) => (
+                                <label
+                                  key={col.filePath}
+                                  className="flex items-start gap-2.5 p-2 hover:bg-neutral-900/60 rounded-lg transition-colors cursor-pointer text-xs"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!selectedDiscoveredPaths[col.filePath]}
+                                    onChange={(e) => {
+                                      setSelectedDiscoveredPaths((prev) => ({
+                                        ...prev,
+                                        [col.filePath]: e.target.checked
+                                      }));
+                                    }}
+                                    className="mt-0.5 accent-indigo-500 rounded border-neutral-850 focus:ring-indigo-500 bg-neutral-950"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-semibold text-neutral-200 truncate">{col.collectionName}</div>
+                                    <div className="text-[9px] text-neutral-500 truncate mt-0.5 font-mono">{col.filePath}</div>
+                                    <div className="text-[9px] text-indigo-400/90 font-semibold mt-1 flex gap-2">
+                                      <span>{col.requestsCount} requests</span>
+                                      <span>•</span>
+                                      <span>{col.foldersCount} folders</span>
+                                    </div>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={handleImportDiscovered}
+                                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                <span>Import Selected</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="border border-indigo-950/50 bg-indigo-950/10 rounded-lg p-5 text-center mt-1 font-sans">
+                        <Layers className="h-8 w-8 text-indigo-400 mx-auto mb-2.5 animate-pulse" />
+                        <h4 className="text-xs font-bold text-white mb-1.5">Standalone Desktop Feature Only</h4>
+                        <p className="text-[11px] text-neutral-400 leading-relaxed max-w-sm mx-auto">
+                          Auto-import filesystem scanning requires desktop system access. Install the RestMan standalone client to sync Postman backups automatically.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {importMsg && (
+                  <div
+                    className={`p-2.5 rounded border text-xs flex items-center gap-2 font-sans mt-1 ${
+                      importMsg.type === "success"
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        : "bg-red-500/10 border-red-500/20 text-red-400"
+                    }`}
+                  >
+                    {importMsg.type === "success" ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                    <span>{importMsg.text}</span>
+                  </div>
+                )}
               </div>
             )}
 

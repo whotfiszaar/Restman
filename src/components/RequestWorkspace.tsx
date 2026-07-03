@@ -1,19 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { db, type RequestItem, type RequestTab, type Variable, type Environment } from "../db/db";
+import { db, type RequestItem, type RequestTab, type Variable } from "../db/db";
 import { parseUrlAndParams, buildUrlWithParams, detectSmartRequestType, resolveVariables } from "../utils/urlHelper";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Play,
-  RotateCcw,
   Plus,
   X,
   PlusCircle,
   Trash2,
   Lock,
-  Eye,
-  EyeOff,
-  Sparkles,
-  Sliders
+  Undo2,
+  Redo2,
+  Upload
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import CustomSelect from "./CustomSelect";
@@ -33,6 +31,7 @@ interface RequestWorkspaceProps {
   setLayoutMode: (val: "side-by-side" | "stacked") => void;
   theme: string;
   onOpenVariables?: () => void;
+  onOpenSettings?: (tab?: "general" | "themes" | "shortcuts" | "about" | "import") => void;
 }
 
 type SubTabType = "params" | "headers" | "auth" | "body" | "variables";
@@ -62,13 +61,33 @@ export default function RequestWorkspace({
   onCancelRequest,
   sidebarOpen,
   setSidebarOpen,
-  responseOpen,
-  setResponseOpen,
-  layoutMode,
-  setLayoutMode,
+  responseOpen: _responseOpen,
+  setResponseOpen: _setResponseOpen,
+  layoutMode: _layoutMode,
+  setLayoutMode: _setLayoutMode,
   theme,
-  onOpenVariables,
+  onOpenVariables: _onOpenVariables,
+  onOpenSettings,
 }: RequestWorkspaceProps) {
+  // Autocomplete Header Key Suggestions active index states
+  const [activeHeaderSuggestionsIdx, setActiveHeaderSuggestionsIdx] = useState<number | null>(null);
+  const [activeHeaderSuggestionsRowIdx, setActiveHeaderSuggestionsRowIdx] = useState<number | null>(null);
+  const [headerFilter, setHeaderFilter] = useState("");
+
+  // Undo / Redo history tracking state definition
+  interface HistoryState {
+    url: string;
+    method: any;
+    headers: any[];
+    params: any[];
+    body: any;
+    auth: any;
+  }
+
+  const historyRef = useRef<Record<string, { past: HistoryState[]; future: HistoryState[] }>>({});
+  const lastSavedStateRef = useRef<Record<string, HistoryState>>({});
+  const lastActionTimeRef = useRef<number>(0);
+  const lastReqIdRef = useRef<string | null>(null);
   // DB Subscriptions
   const tabs = (useLiveQuery(() => db.tabs.orderBy("order").toArray()) as RequestTab[]) || [];
   const requests = (useLiveQuery(() => db.requests.toArray()) as RequestItem[]) || [];
@@ -103,7 +122,7 @@ export default function RequestWorkspace({
   const handleInputCheckVar = (e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const el = e.currentTarget;
     const val = el.value;
-    const cursor = el.selectionStart;
+    const cursor = el.selectionStart || 0;
     const varName = getVariableAtCursor(val, cursor);
 
     if (varName) {
@@ -141,8 +160,6 @@ export default function RequestWorkspace({
   // Tab internal sub-panel state
   const [subTab, setSubTab] = useState<SubTabType>("params");
 
-  // Local state for auth visual masking
-  const [revealAuth, setRevealAuth] = useState(false);
 
   // Focus controller
   const urlInputRef = useRef<HTMLTextAreaElement>(null);
@@ -184,6 +201,175 @@ export default function RequestWorkspace({
       setLocalFormParams([]);
     }
   }, [activeRequest]);
+
+  // Helper to get current state of request
+  const getHistoryState = (): HistoryState | null => {
+    if (!activeRequest) return null;
+    return {
+      url: localUrl,
+      method: activeRequest.method,
+      headers: JSON.parse(JSON.stringify(localHeaders)),
+      params: JSON.parse(JSON.stringify(localParams)),
+      body: JSON.parse(JSON.stringify(activeRequest.body || { type: "none" })),
+      auth: JSON.parse(JSON.stringify(activeRequest.auth || { type: "none" })),
+    };
+  };
+
+  const saveHistoryState = (forceNewEntry = false) => {
+    if (!activeRequest) return;
+    const reqId = activeRequest.id;
+    const current = getHistoryState();
+    if (!current) return;
+
+    if (!historyRef.current[reqId]) {
+      historyRef.current[reqId] = { past: [], future: [] };
+    }
+
+    const hist = historyRef.current[reqId];
+    const lastSaved = lastSavedStateRef.current[reqId];
+
+    if (lastSaved && 
+        lastSaved.url === current.url &&
+        lastSaved.method === current.method &&
+        JSON.stringify(lastSaved.headers) === JSON.stringify(current.headers) &&
+        JSON.stringify(lastSaved.params) === JSON.stringify(current.params) &&
+        JSON.stringify(lastSaved.body) === JSON.stringify(current.body) &&
+        JSON.stringify(lastSaved.auth) === JSON.stringify(current.auth)) {
+      return; // No change, don't save
+    }
+
+    const now = Date.now();
+    const timeSinceLastAction = now - lastActionTimeRef.current;
+    
+    if (forceNewEntry || timeSinceLastAction > 1500 || !lastSaved) {
+      if (lastSaved) {
+        hist.past.push(lastSaved);
+        if (hist.past.length > 50) hist.past.shift();
+      }
+      hist.future = [];
+    }
+
+    lastSavedStateRef.current[reqId] = current;
+    lastActionTimeRef.current = now;
+  };
+
+  const handleUndo = async () => {
+    if (!activeRequest) return;
+    const reqId = activeRequest.id;
+    const hist = historyRef.current[reqId];
+    if (!hist || hist.past.length === 0) return;
+
+    const current = getHistoryState();
+    if (current) {
+      hist.future.push(current);
+    }
+
+    const previous = hist.past.pop()!;
+    lastSavedStateRef.current[reqId] = previous;
+    lastActionTimeRef.current = Date.now();
+
+    setLocalUrl(previous.url);
+    setLocalParams(previous.params);
+    setLocalHeaders(previous.headers);
+    if (previous.body.content !== undefined) {
+      setLocalBodyContent(previous.body.content);
+    }
+    if (previous.body.formParams !== undefined) {
+      setLocalFormParams(previous.body.formParams);
+    }
+
+    await db.requests.update(reqId, {
+      url: previous.url,
+      method: previous.method,
+      headers: previous.headers,
+      params: previous.params,
+      body: previous.body,
+      auth: previous.auth,
+      updatedAt: Date.now(),
+    });
+  };
+
+  const handleRedo = async () => {
+    if (!activeRequest) return;
+    const reqId = activeRequest.id;
+    const hist = historyRef.current[reqId];
+    if (!hist || hist.future.length === 0) return;
+
+    const current = getHistoryState();
+    if (current) {
+      hist.past.push(current);
+    }
+
+    const next = hist.future.pop()!;
+    lastSavedStateRef.current[reqId] = next;
+    lastActionTimeRef.current = Date.now();
+
+    setLocalUrl(next.url);
+    setLocalParams(next.params);
+    setLocalHeaders(next.headers);
+    if (next.body.content !== undefined) {
+      setLocalBodyContent(next.body.content);
+    }
+    if (next.body.formParams !== undefined) {
+      setLocalFormParams(next.body.formParams);
+    }
+
+    await db.requests.update(reqId, {
+      url: next.url,
+      method: next.method,
+      headers: next.headers,
+      params: next.params,
+      body: next.body,
+      auth: next.auth,
+      updatedAt: Date.now(),
+    });
+  };
+
+  // Keyboard undo/redo shortcuts hook
+  useEffect(() => {
+    const handleUndoRedoKeys = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.closest(".monaco-editor"))) {
+          e.preventDefault();
+          handleUndo();
+        }
+      }
+      if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") || 
+          ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "z")) {
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.closest(".monaco-editor"))) {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleUndoRedoKeys);
+    return () => window.removeEventListener("keydown", handleUndoRedoKeys);
+  }, [activeRequest, localUrl, localParams, localHeaders, localBodyContent, localFormParams]);
+
+  // Sync inputs with history baseline, handling tab changes
+  useEffect(() => {
+    if (!activeRequest) return;
+    const reqId = activeRequest.id;
+
+    if (lastReqIdRef.current !== reqId) {
+      lastReqIdRef.current = reqId;
+      const current = {
+        url: activeRequest.url || "",
+        method: activeRequest.method || "GET",
+        headers: JSON.parse(JSON.stringify(activeRequest.headers || [])),
+        params: JSON.parse(JSON.stringify(activeRequest.params || [])),
+        body: JSON.parse(JSON.stringify(activeRequest.body || { type: "none" })),
+        auth: JSON.parse(JSON.stringify(activeRequest.auth || { type: "none" })),
+      };
+      lastSavedStateRef.current[reqId] = current;
+      lastActionTimeRef.current = Date.now();
+      return;
+    }
+
+    saveHistoryState();
+  }, [localUrl, localParams, localHeaders, localBodyContent, localFormParams, activeRequest?.method, activeRequest?.auth]);
 
   useEffect(() => {
     const closeMenu = () => setContextMenu(null);
@@ -391,6 +577,7 @@ export default function RequestWorkspace({
 
   const handleParamToggle = async (idx: number) => {
     if (!activeRequest) return;
+    saveHistoryState(true);
     const items = [...localParams];
     items[idx].enabled = !items[idx].enabled;
     setLocalParams(items);
@@ -400,6 +587,7 @@ export default function RequestWorkspace({
         params: items,
         updatedAt: Date.now(),
       });
+      setTimeout(() => saveHistoryState(true), 0);
     } catch (err) {
       console.error("Failed to toggle param:", err);
     }
@@ -407,6 +595,7 @@ export default function RequestWorkspace({
 
   const handleAddParamRow = async () => {
     if (!activeRequest) return;
+    saveHistoryState(true);
     const newRow = {
       id: `param-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       key: "",
@@ -420,6 +609,7 @@ export default function RequestWorkspace({
       await db.requests.update(activeRequest.id, {
         params: updated,
       });
+      setTimeout(() => saveHistoryState(true), 0);
     } catch (err) {
       console.error("Failed to add param row:", err);
     }
@@ -427,6 +617,7 @@ export default function RequestWorkspace({
 
   const handleRemoveParamRow = async (idx: number) => {
     if (!activeRequest) return;
+    saveHistoryState(true);
     const items = [...localParams];
     items.splice(idx, 1);
     setLocalParams(items);
@@ -435,6 +626,7 @@ export default function RequestWorkspace({
       await db.requests.update(activeRequest.id, {
         params: items,
       });
+      setTimeout(() => saveHistoryState(true), 0);
     } catch (err) {
       console.error("Failed to remove param row:", err);
     }
@@ -503,6 +695,36 @@ export default function RequestWorkspace({
       });
     } catch (err) {
       console.error("Failed to remove header row:", err);
+    }
+  };
+
+  const handleHeaderKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (activeHeaderSuggestionsRowIdx !== idx) return;
+    const filtered = HEADER_SUGGESTIONS.filter(item => 
+      item.toLowerCase().includes(headerFilter.toLowerCase())
+    );
+    if (filtered.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveHeaderSuggestionsIdx(prev => 
+        prev === null || prev >= filtered.length - 1 ? 0 : prev + 1
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveHeaderSuggestionsIdx(prev => 
+        prev === null || prev <= 0 ? filtered.length - 1 : prev - 1
+      );
+    } else if (e.key === "Enter") {
+      if (activeHeaderSuggestionsIdx !== null && filtered[activeHeaderSuggestionsIdx]) {
+        e.preventDefault();
+        const selectedVal = filtered[activeHeaderSuggestionsIdx];
+        handleHeaderRowChange(idx, "key", selectedVal);
+        setActiveHeaderSuggestionsRowIdx(null);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setActiveHeaderSuggestionsRowIdx(null);
     }
   };
 
@@ -804,18 +1026,33 @@ export default function RequestWorkspace({
 
       {/* Workspace Area */}
       {!activeRequest ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-neutral-900">
-          <Sparkles className="h-8 w-8 text-emerald-500 animate-bounce mb-3" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">No Request Selected</h3>
-          <p className="text-xs text-neutral-500 max-w-sm mt-1 leading-relaxed">
-            Select an endpoint from the left workspace sidebar, create a new draft request, or hit <code className="bg-neutral-900 p-1 rounded font-mono text-[10px]">Ctrl + K</code> to open the command palette.
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-neutral-900 font-sans">
+          <svg viewBox="0 0 100 100" className="h-12 w-12 mb-4 animate-pulse shrink-0">
+            <rect width="100" height="100" rx="22" fill="var(--accent-color)"/>
+            <text y="72" x="26" fontFamily="sans-serif" fontSize="62" fontWeight="900" fill="#ffffff">R</text>
+          </svg>
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">RestMan Premium API Studio</h3>
+          <p className="text-xs text-neutral-500 max-w-sm mt-1 leading-relaxed mb-6">
+            A state-of-the-art, offline-first API client. Select an endpoint from the left sidebar, create a draft, or import a collection to begin.
           </p>
-          <button
-            onClick={handleCreateDraft}
-            className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer"
-          >
-            Create Quick Draft Request
-          </button>
+
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-center w-full max-w-md">
+            <button
+              onClick={handleCreateDraft}
+              className="w-full sm:w-auto px-4 py-2.5 bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+            >
+              <Plus className="h-4 w-4 text-emerald-400" />
+              <span>Create New Request</span>
+            </button>
+            
+            <button
+              onClick={() => onOpenSettings && onOpenSettings("import")}
+              className="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+            >
+              <Upload className="h-4 w-4 text-indigo-200" />
+              <span>Import Postman Collection</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex flex-col px-4 pb-4 pt-2 overflow-y-auto scrollbar-thin space-y-4">
@@ -838,7 +1075,7 @@ export default function RequestWorkspace({
             />
 
             {/* URL Input Card */}
-            <div className="flex-1 min-w-0 bg-neutral-900 rounded-lg border border-neutral-850 shadow-md overflow-hidden">
+            <div className="flex-1 min-w-0 bg-neutral-900 rounded-lg border border-neutral-850 shadow-md overflow-hidden flex items-center pr-1.5">
               <textarea
                 ref={urlInputRef}
                 rows={1}
@@ -850,37 +1087,55 @@ export default function RequestWorkspace({
                 onMouseUp={handleInputCheckVar}
                 onBlur={handleInputBlur}
                 placeholder="Enter API endpoint URL or ${variable}..."
-                className="w-full bg-transparent px-3 py-2 text-xs text-neutral-300 placeholder-neutral-600 focus:outline-none font-mono resize-none"
+                className="flex-1 bg-transparent px-3 py-2 text-xs text-neutral-300 placeholder-neutral-600 focus:outline-none font-mono resize-none"
                 style={{
                   height: "auto",
                   minHeight: "32px",
                   maxHeight: "120px"
                 }}
               />
+              
+              {/* Inline Undo / Redo controls */}
+              <div className="flex items-center gap-0.5 shrink-0 border-l border-neutral-800/80 pl-1.5">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={!historyRef.current[activeRequest.id] || historyRef.current[activeRequest.id].past.length === 0}
+                  className="p-1 hover:bg-neutral-850 rounded text-neutral-400 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="Undo change (Ctrl+Z)"
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRedo}
+                  disabled={!historyRef.current[activeRequest.id] || historyRef.current[activeRequest.id].future.length === 0}
+                  className="p-1 hover:bg-neutral-850 rounded text-neutral-400 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="Redo change (Ctrl+Y)"
+                >
+                  <Redo2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Send / Cancel button - outside the card */}
             {isSending ? (
               <button
                 onClick={onCancelRequest}
-                className="rounded-lg bg-rose-600 hover:bg-rose-500 p-2 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="rounded-lg bg-rose-600 hover:bg-rose-500 active:scale-95 px-4 py-2 text-white flex items-center justify-center gap-1.5 transition-all duration-150 cursor-pointer shrink-0 text-xs font-semibold shadow-lg shadow-rose-600/10 font-sans border-0"
                 title="Click to cancel request"
               >
-                {/* CRED-style square stop icon */}
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
-                  <rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/>
-                </svg>
+                <X className="h-3.5 w-3.5" />
+                <span>Cancel</span>
               </button>
             ) : (
               <button
                 onClick={() => onSendRequest(activeRequest)}
-                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 p-2 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="rounded-lg bg-[var(--accent-color)] hover:opacity-90 active:scale-95 px-4 py-2 text-white flex items-center justify-center gap-1.5 transition-all duration-150 cursor-pointer shrink-0 text-xs font-semibold shadow-lg shadow-[var(--accent-color)]/10 font-sans border-0"
                 title="Send Request (Ctrl+Enter)"
               >
-                {/* CRED-style slim right-pointing triangle */}
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
-                  <path d="M3.5 2.5L13.5 8L3.5 13.5V2.5Z"/>
-                </svg>
+                <Play className="h-3.5 w-3.5 fill-current" />
+                <span>Send</span>
               </button>
             )}
           </div>
@@ -910,7 +1165,7 @@ export default function RequestWorkspace({
                   key={tab}
                   onClick={() => setSubTab(tab)}
                   className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    isActive ? "bg-neutral-900 text-white font-bold" : "text-neutral-500 hover:text-neutral-300"
+                    isActive ? "bg-neutral-900 text-neutral-200 font-bold" : "text-neutral-500 hover:text-neutral-300"
                   }`}
                 >
                   {titles[tab as keyof typeof titles]}
@@ -1060,18 +1315,66 @@ export default function RequestWorkspace({
                               />
                             </td>
                             <td className="py-1.5 px-2">
-                              <input
-                                type="text"
-                                value={h.key}
-                                onChange={(e) => handleHeaderRowChange(idx, "key", e.target.value)}
-                                onKeyUp={handleInputCheckVar}
-                                onSelect={handleInputCheckVar}
-                                onMouseUp={handleInputCheckVar}
-                                onBlur={handleInputBlur}
-                                placeholder="e.g. Content-Type"
-                                className="w-full bg-transparent border-none text-white focus:outline-none focus:ring-1 focus:ring-neutral-800 rounded px-1.5 py-0.5 text-xs"
-                                list="header-keys-datalist"
-                              />
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={h.key}
+                                  onChange={(e) => {
+                                    handleHeaderRowChange(idx, "key", e.target.value);
+                                    setHeaderFilter(e.target.value);
+                                    setActiveHeaderSuggestionsIdx(0);
+                                  }}
+                                  onFocus={() => {
+                                    setActiveHeaderSuggestionsRowIdx(idx);
+                                    setActiveHeaderSuggestionsIdx(0);
+                                    setHeaderFilter(h.key);
+                                  }}
+                                  onKeyDown={(e) => handleHeaderKeyDown(idx, e)}
+                                  onBlur={() => {
+                                    setTimeout(() => {
+                                      setActiveHeaderSuggestionsRowIdx(null);
+                                    }, 200);
+                                  }}
+                                  onKeyUp={handleInputCheckVar}
+                                  onSelect={handleInputCheckVar}
+                                  onMouseUp={handleInputCheckVar}
+                                  placeholder="e.g. Content-Type"
+                                  className="w-full bg-transparent border-none text-white focus:outline-none focus:ring-1 focus:ring-neutral-800 rounded px-1.5 py-0.5 text-xs font-mono"
+                                />
+
+                                {activeHeaderSuggestionsRowIdx === idx && (
+                                  (() => {
+                                    const filtered = HEADER_SUGGESTIONS.filter(item => 
+                                      item.toLowerCase().includes(headerFilter.toLowerCase())
+                                    );
+                                    if (filtered.length === 0) return null;
+                                    return (
+                                      <div className="absolute left-0 top-full mt-1 z-[150] w-56 bg-neutral-950 border border-neutral-850 rounded-lg p-1 shadow-2xl max-h-48 overflow-y-auto scrollbar-thin flex flex-col font-sans">
+                                        {filtered.map((hs, sIdx) => {
+                                          const isSelected = activeHeaderSuggestionsIdx === sIdx;
+                                          return (
+                                            <button
+                                              key={hs}
+                                              type="button"
+                                              onMouseDown={() => {
+                                                handleHeaderRowChange(idx, "key", hs);
+                                                setActiveHeaderSuggestionsRowIdx(null);
+                                              }}
+                                              className={`w-full text-left px-2.5 py-1.5 rounded text-[11px] font-semibold transition-colors cursor-pointer border-0 ${
+                                                isSelected 
+                                                  ? "bg-neutral-850 text-white font-bold" 
+                                                  : "bg-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
+                                              }`}
+                                            >
+                                              {hs}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()
+                                )}
+                              </div>
                             </td>
                             <td className="py-1.5 px-2">
                               <input
@@ -1108,11 +1411,6 @@ export default function RequestWorkspace({
                       )}
                     </tbody>
                   </table>
-                  <datalist id="header-keys-datalist">
-                    {HEADER_SUGGESTIONS.map((hs) => (
-                      <option key={hs} value={hs} />
-                    ))}
-                  </datalist>
                 </div>
               </div>
             )}
@@ -1133,7 +1431,7 @@ export default function RequestWorkspace({
                           onClick={() => handleAuthChange({ type: type as any })}
                           className={`px-3 py-1.5 rounded transition-all cursor-pointer whitespace-nowrap ${
                             activeRequest.auth.type === type
-                              ? "bg-neutral-800 text-white font-bold shadow-sm"
+                              ? "bg-neutral-800 text-neutral-200 font-bold shadow-sm"
                               : "text-neutral-500 hover:text-neutral-300"
                           }`}
                         >

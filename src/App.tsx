@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { db, seedDatabaseIfEmpty, pruneHistory, type RequestItem, type RequestTab, type Variable, type Environment } from "./db/db";
+import { db, seedDatabaseIfEmpty, pruneHistory, type RequestItem, type RequestTab, type Variable } from "./db/db";
 import { resolveVariables, buildUrlWithParams } from "./utils/urlHelper";
 import { useLiveQuery } from "dexie-react-hooks";
 import CollectionSidebar from "./components/CollectionSidebar";
@@ -59,7 +59,6 @@ export default function App() {
   const [layoutMode, setLayoutMode] = useState<"side-by-side" | "stacked">("side-by-side");
 
   // CORS config & mode
-  const isElectron = typeof window !== 'undefined' && window.navigator.userAgent.toLowerCase().includes('electron');
   const [useProxy, setUseProxy] = useState(false);
   const [proxyUrl, setProxyUrl] = useState("https://api.allorigins.win/raw?url=");
   const [corsErrorMsg, setCorsErrorMsg] = useState<string | null>(null);
@@ -72,7 +71,13 @@ export default function App() {
   // UI Theme (dark first)
   const [theme, setTheme] = useState<string>("dark");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"general" | "themes" | "shortcuts" | "about" | "import">("general");
+  const [fontFamily, setFontFamily] = useState<string>("'Inter', sans-serif");
 
+  const openSettingsToTab = (tab: "general" | "themes" | "shortcuts" | "about" | "import") => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  };
   // Load seeds and persistent UI configurations on initialization
   useEffect(() => {
     async function init() {
@@ -88,6 +93,11 @@ export default function App() {
       const pTheme = await db.uiState.get("theme");
       if (pTheme) {
         setTheme(pTheme.value);
+      }
+
+      const pFontFamily = await db.uiState.get("fontFamily");
+      if (pFontFamily) {
+        setFontFamily(pFontFamily.value);
       }
 
       const pSidebarOpen = await db.uiState.get("sidebarOpen");
@@ -131,6 +141,14 @@ export default function App() {
       db.uiState.put({ key: "theme", value: theme });
     }
   }, [theme, isInitialized]);
+
+  // Sync font-family changes with DOM
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-sans', fontFamily);
+    if (isInitialized) {
+      db.uiState.put({ key: "fontFamily", value: fontFamily });
+    }
+  }, [fontFamily, isInitialized]);
 
   // Sync layout customization states to IndexedDB after initialization
   useEffect(() => {
@@ -649,7 +667,7 @@ export default function App() {
               activeRequestId={tabs.find((t) => t.id === activeTabId)?.requestId || null}
               onSelectRequest={handleSelectRequest}
               onOpenVariables={() => setVariablesOpen(true)}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenSettings={(tab) => openSettingsToTab(tab || "general")}
             />
 
             {/* Mouse drag handlebar */}
@@ -679,6 +697,7 @@ export default function App() {
                 setLayoutMode={setLayoutMode}
                 theme={theme}
                 onOpenVariables={() => setVariablesOpen(true)}
+                onOpenSettings={(tab) => openSettingsToTab(tab || "general")}
               />
             </div>
             <div className="h-7 border-t border-neutral-800 shrink-0">
@@ -720,6 +739,7 @@ export default function App() {
                   setLayoutMode={setLayoutMode}
                   theme={theme}
                   onOpenVariables={() => setVariablesOpen(true)}
+                  onOpenSettings={(tab) => openSettingsToTab(tab || "general")}
                 />
 
                 {/* Mouse drag handlebar */}
@@ -769,6 +789,7 @@ export default function App() {
                   setLayoutMode={setLayoutMode}
                   theme={theme}
                   onOpenVariables={() => setVariablesOpen(true)}
+                  onOpenSettings={(tab) => openSettingsToTab(tab || "general")}
                 />
               </div>
             )}
@@ -815,6 +836,10 @@ export default function App() {
         onProxyChange={(val) => setUseProxy(val)}
         proxyUrl={proxyUrl}
         onProxyUrlChange={(val) => setProxyUrl(val)}
+        fontFamily={fontFamily}
+        onFontFamilyChange={(newFont) => setFontFamily(newFont)}
+        initialTab={settingsTab}
+        onTabChange={(tab) => setSettingsTab(tab)}
       />
 
       {/* CORS Error explanation banner popover */}
@@ -859,12 +884,12 @@ export default function App() {
       />
 
       {/* VS Code Style Status Bar (Fixed 24px height, dark unified background, controls on the right, Settings on the left) */}
-      <div className="h-6 shrink-0 bg-[#181818] border-t border-neutral-800 text-neutral-400 flex items-center justify-between px-3 text-[10.5px] font-sans select-none z-[30] relative">
+      <div className="h-6 shrink-0 bg-sidebar-bg border-t border-sidebar-border text-sidebar-text-muted flex items-center justify-between px-3 text-[10.5px] font-sans select-none z-[30] relative">
         {/* Left side: Settings trigger */}
         <div className="w-48 shrink-0 flex items-center gap-1.5">
           <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-1 hover:bg-neutral-850 hover:text-white rounded text-neutral-400 transition-colors cursor-pointer bg-transparent border-none flex items-center gap-1"
+            onClick={() => openSettingsToTab("general")}
+            className="p-1 hover:bg-sidebar-selection hover:text-sidebar-text rounded text-sidebar-text-muted transition-colors cursor-pointer bg-transparent border-none flex items-center gap-1"
             title="Preferences & Themes"
           >
             <Settings className="h-3.5 w-3.5" />
@@ -882,7 +907,7 @@ export default function App() {
           {/* Variables Modal Trigger */}
           <button
             onClick={() => setVariablesOpen(true)}
-            className="p-1 hover:bg-neutral-850 hover:text-white rounded text-neutral-400 transition-colors cursor-pointer flex items-center gap-1 bg-transparent border-none"
+            className="p-1 hover:bg-sidebar-selection hover:text-sidebar-text rounded text-sidebar-text-muted transition-colors cursor-pointer flex items-center gap-1 bg-transparent border-none"
             title="Manage Variables (Ctrl+Shift+V)"
           >
             <Sliders className="h-3 w-3 text-emerald-400" />
@@ -894,7 +919,7 @@ export default function App() {
           {/* Toggle Sidebar */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`p-1 rounded hover:bg-neutral-850 transition-colors cursor-pointer bg-transparent border-none ${sidebarOpen ? "text-[#007acc]" : "text-neutral-400 hover:text-white"}`}
+            className={`p-1 rounded hover:bg-sidebar-selection transition-colors cursor-pointer bg-transparent border-none ${sidebarOpen ? "text-[#007acc]" : "text-sidebar-text-muted hover:text-sidebar-text"}`}
             title="Toggle Sidebar (Ctrl+B)"
           >
             <svg stroke="currentColor" fill="none" strokeWidth="2.5" viewBox="0 0 24 24" className="h-3.5 w-3.5">
@@ -906,7 +931,7 @@ export default function App() {
           {/* Toggle Split Mode */}
           <button
             onClick={() => setLayoutMode(layoutMode === "side-by-side" ? "stacked" : "side-by-side")}
-            className={`p-1 rounded hover:bg-neutral-850 transition-colors cursor-pointer bg-transparent border-none ${layoutMode === "stacked" ? "text-[#007acc]" : "text-neutral-400"}`}
+            className={`p-1 rounded hover:bg-sidebar-selection transition-colors cursor-pointer bg-transparent border-none ${layoutMode === "stacked" ? "text-[#007acc]" : "text-sidebar-text-muted"}`}
             title={layoutMode === "stacked" ? "Layout: Stacked (Top/Bottom)" : "Layout: Side-by-Side"}
           >
             {layoutMode === "stacked" ? (
@@ -925,7 +950,7 @@ export default function App() {
           {/* Toggle Response Panel */}
           <button
             onClick={() => setResponseOpen(!responseOpen)}
-            className={`p-1 rounded hover:bg-neutral-850 transition-colors cursor-pointer bg-transparent border-none ${responseOpen ? "text-[#007acc]" : "text-neutral-400 hover:text-white"}`}
+            className={`p-1 rounded hover:bg-sidebar-selection transition-colors cursor-pointer bg-transparent border-none ${responseOpen ? "text-[#007acc]" : "text-sidebar-text-muted hover:text-sidebar-text"}`}
             title="Toggle Response (Ctrl+J)"
           >
             <svg stroke="currentColor" fill="none" strokeWidth="2.5" viewBox="0 0 24 24" className="h-3.5 w-3.5">
