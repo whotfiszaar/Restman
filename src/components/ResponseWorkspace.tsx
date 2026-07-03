@@ -372,7 +372,7 @@ export default function ResponseWorkspace({
   return (
     <div className="flex flex-col h-full bg-neutral-900 text-neutral-200 border-l border-neutral-800 relative font-sans">
       {/* Dynamic Header Metrics Bar */}
-      <div className="px-3 border-b border-neutral-800 bg-neutral-950 text-neutral-200 shrink-0 flex items-center justify-between gap-3 h-[41px] min-h-[41px]">
+      <div className={`px-3 border-b border-neutral-800 bg-neutral-950 text-neutral-200 shrink-0 flex items-center justify-between gap-3 h-[41px] min-h-[41px] ${isMaximized ? "pr-[140px]" : ""}`}>
         {responseStatus !== null ? (
           <div className="flex items-center gap-3">
             {/* Status Code badge */}
