@@ -556,6 +556,26 @@ export default function RequestWorkspace({
       } catch {
         // Continue URL paste
       }
+    } else if (pastedText.toLowerCase().startsWith("http://") || pastedText.toLowerCase().startsWith("https://") || pastedText.includes("?")) {
+      e.preventDefault();
+      try {
+        let decoded = pastedText;
+        for (let i = 0; i < 3; i++) {
+          const nextDecoded = decodeURIComponent(decoded);
+          if (nextDecoded === decoded) break;
+          decoded = nextDecoded;
+        }
+
+        const textarea = e.currentTarget;
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || 0;
+        const currentVal = textarea.value;
+        const newVal = currentVal.substring(0, start) + decoded + currentVal.substring(end);
+
+        handleUrlChange(newVal);
+      } catch (err) {
+        console.error("Failed to decode pasted URL:", err);
+      }
     }
   };
 
