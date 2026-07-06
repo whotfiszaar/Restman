@@ -9,8 +9,6 @@ import {
   PlusCircle,
   Trash2,
   Lock,
-  Undo2,
-  Redo2,
   Upload
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
@@ -92,6 +90,8 @@ export default function RequestWorkspace({
   const tabs = (useLiveQuery(() => db.tabs.orderBy("order").toArray()) as RequestTab[]) || [];
   const requests = (useLiveQuery(() => db.requests.toArray()) as RequestItem[]) || [];
   const variables = (useLiveQuery(() => db.variables.toArray()) as Variable[]) || [];
+  const collections = useLiveQuery(() => db.collections.toArray()) || [];
+  const folders = useLiveQuery(() => db.folders.toArray()) || [];
 
   // Merge globals (no environments)
   const mergedVariables = useMemo(() => {
@@ -156,6 +156,7 @@ export default function RequestWorkspace({
   const [localHeaders, setLocalHeaders] = useState<any[]>([]);
   const [localBodyContent, setLocalBodyContent] = useState("");
   const [localFormParams, setLocalFormParams] = useState<any[]>([]);
+  const [tempName, setTempName] = useState("");
 
   // Tab internal sub-panel state
   const [subTab, setSubTab] = useState<SubTabType>("params");
@@ -178,6 +179,7 @@ export default function RequestWorkspace({
   // Sync local states from DB when activeRequest changes or when DB updates externally
   useEffect(() => {
     if (activeRequest) {
+      setTempName(activeRequest.name || "");
       if (!debounceTimers.current["url"]) {
         setLocalUrl(activeRequest.url || "");
       }
@@ -199,8 +201,45 @@ export default function RequestWorkspace({
       setLocalHeaders([]);
       setLocalBodyContent("");
       setLocalFormParams([]);
+      setTempName("");
     }
   }, [activeRequest]);
+
+  const handleNameChange = async (newName: string) => {
+    setTempName(newName);
+    if (!activeRequest) return;
+    try {
+      await db.requests.update(activeRequest.id, { name: newName });
+    } catch (err) {
+      console.error("Failed to update request name:", err);
+    }
+  };
+
+  // Breadcrumbs calculation
+  const breadcrumbs = useMemo(() => {
+    if (!activeRequest) return [];
+    const crumbs: string[] = [];
+
+    // Find parent folders recursively
+    let currentFolderId = activeRequest.folderId;
+    while (currentFolderId) {
+      const folder = folders.find((f) => f.id === currentFolderId);
+      if (folder) {
+        crumbs.unshift(folder.name);
+        currentFolderId = folder.parentFolderId;
+      } else {
+        break;
+      }
+    }
+
+    // Find collection
+    const collection = collections.find((c) => c.id === activeRequest.collectionId);
+    if (collection) {
+      crumbs.unshift(collection.name);
+    }
+
+    return crumbs;
+  }, [activeRequest, folders, collections]);
 
   // Helper to get current state of request
   const getHistoryState = (): HistoryState | null => {
@@ -253,100 +292,9 @@ export default function RequestWorkspace({
     lastActionTimeRef.current = now;
   };
 
-  const handleUndo = async () => {
-    if (!activeRequest) return;
-    const reqId = activeRequest.id;
-    const hist = historyRef.current[reqId];
-    if (!hist || hist.past.length === 0) return;
 
-    const current = getHistoryState();
-    if (current) {
-      hist.future.push(current);
-    }
 
-    const previous = hist.past.pop()!;
-    lastSavedStateRef.current[reqId] = previous;
-    lastActionTimeRef.current = Date.now();
 
-    setLocalUrl(previous.url);
-    setLocalParams(previous.params);
-    setLocalHeaders(previous.headers);
-    if (previous.body.content !== undefined) {
-      setLocalBodyContent(previous.body.content);
-    }
-    if (previous.body.formParams !== undefined) {
-      setLocalFormParams(previous.body.formParams);
-    }
-
-    await db.requests.update(reqId, {
-      url: previous.url,
-      method: previous.method,
-      headers: previous.headers,
-      params: previous.params,
-      body: previous.body,
-      auth: previous.auth,
-      updatedAt: Date.now(),
-    });
-  };
-
-  const handleRedo = async () => {
-    if (!activeRequest) return;
-    const reqId = activeRequest.id;
-    const hist = historyRef.current[reqId];
-    if (!hist || hist.future.length === 0) return;
-
-    const current = getHistoryState();
-    if (current) {
-      hist.past.push(current);
-    }
-
-    const next = hist.future.pop()!;
-    lastSavedStateRef.current[reqId] = next;
-    lastActionTimeRef.current = Date.now();
-
-    setLocalUrl(next.url);
-    setLocalParams(next.params);
-    setLocalHeaders(next.headers);
-    if (next.body.content !== undefined) {
-      setLocalBodyContent(next.body.content);
-    }
-    if (next.body.formParams !== undefined) {
-      setLocalFormParams(next.body.formParams);
-    }
-
-    await db.requests.update(reqId, {
-      url: next.url,
-      method: next.method,
-      headers: next.headers,
-      params: next.params,
-      body: next.body,
-      auth: next.auth,
-      updatedAt: Date.now(),
-    });
-  };
-
-  // Keyboard undo/redo shortcuts hook
-  useEffect(() => {
-    const handleUndoRedoKeys = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
-        const activeEl = document.activeElement;
-        if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.closest(".monaco-editor"))) {
-          e.preventDefault();
-          handleUndo();
-        }
-      }
-      if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") || 
-          ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "z")) {
-        const activeEl = document.activeElement;
-        if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.closest(".monaco-editor"))) {
-          e.preventDefault();
-          handleRedo();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleUndoRedoKeys);
-    return () => window.removeEventListener("keydown", handleUndoRedoKeys);
-  }, [activeRequest, localUrl, localParams, localHeaders, localBodyContent, localFormParams]);
 
   // Sync inputs with history baseline, handling tab changes
   useEffect(() => {
@@ -1072,9 +1020,16 @@ export default function RequestWorkspace({
       {/* Workspace Area */}
       {!activeRequest ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-neutral-900 font-sans">
-          <svg viewBox="0 0 100 100" className="h-12 w-12 mb-4 animate-pulse shrink-0">
-            <rect width="100" height="100" rx="22" fill="var(--accent-color)"/>
-            <text y="72" x="26" fontFamily="sans-serif" fontSize="62" fontWeight="900" fill="#ffffff">R</text>
+          <svg viewBox="0 0 500 500" className="h-12 w-12 mb-4 animate-pulse shrink-0">
+            <circle cx="250" cy="250" r="230" fill="#FF6C37" />
+            <g fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M170 360 V160" />
+              <path d="M170 160 H270 C330 160, 330 250, 270 250 H170" />
+              <path d="M245 250 L335 360" />
+              <path d="M240 195 H265 L285 215 L265 235 H240 Z" fill="#FFFFFF" stroke-width="0" />
+            </g>
+            <path d="M120 220 H140" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
+            <path d="M110 260 H135" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.4"/>
           </svg>
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">RestMan Premium API Studio</h3>
           <p className="text-xs text-neutral-500 max-w-sm mt-1 leading-relaxed mb-6">
@@ -1101,6 +1056,38 @@ export default function RequestWorkspace({
         </div>
       ) : (
         <div className="flex-1 flex flex-col px-4 pb-4 pt-2 overflow-y-auto scrollbar-thin space-y-4">
+          {/* Request Header Area (Breadcrumb + Editable Request Name) */}
+          <div className="flex flex-col gap-0.5 pb-2 border-b border-neutral-900 select-none shrink-0">
+            {/* Breadcrumb Path */}
+            <div className="flex items-center gap-1 text-[10px] text-neutral-500 font-medium font-sans">
+              <svg viewBox="0 0 14 14" className="h-3 w-3 shrink-0 text-neutral-500" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <line x1="1" y1="3.5" x2="13" y2="3.5"/>
+                <line x1="1" y1="7" x2="9" y2="7"/>
+                <line x1="1" y1="10.5" x2="13" y2="10.5"/>
+              </svg>
+              {breadcrumbs.map((crumb, idx) => (
+                <span key={idx} className="flex items-center gap-1">
+                  <span className="truncate max-w-[120px]">{crumb}</span>
+                  <span className="text-neutral-700">/</span>
+                </span>
+              ))}
+              <span className="text-neutral-400 font-semibold truncate max-w-[150px]">
+                {activeRequest.name}
+              </span>
+            </div>
+
+            {/* Editable Request Name Heading */}
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="text"
+                value={tempName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Untitled Request"
+                className="bg-transparent border-none text-base font-bold text-white focus:outline-none focus:bg-neutral-950 focus:ring-1 focus:ring-neutral-800 rounded px-1.5 py-0.5 w-full max-w-md transition-all font-sans"
+              />
+            </div>
+          </div>
+
           {/* Main Sticky Request Bar */}
           <div className="flex items-start gap-2">
             {/* Method Custom Select - outside the card */}
@@ -1139,28 +1126,7 @@ export default function RequestWorkspace({
                   maxHeight: "120px"
                 }}
               />
-              
-              {/* Inline Undo / Redo controls */}
-              <div className="flex items-center gap-0.5 shrink-0 border-l border-neutral-800/80 pl-1.5">
-                <button
-                  type="button"
-                  onClick={handleUndo}
-                  disabled={!historyRef.current[activeRequest.id] || historyRef.current[activeRequest.id].past.length === 0}
-                  className="p-1 hover:bg-neutral-850 rounded text-neutral-400 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
-                  title="Undo change (Ctrl+Z)"
-                >
-                  <Undo2 className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRedo}
-                  disabled={!historyRef.current[activeRequest.id] || historyRef.current[activeRequest.id].future.length === 0}
-                  className="p-1 hover:bg-neutral-850 rounded text-neutral-400 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
-                  title="Redo change (Ctrl+Y)"
-                >
-                  <Redo2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+
             </div>
 
             {/* Send / Cancel button - outside the card */}
@@ -1224,8 +1190,8 @@ export default function RequestWorkspace({
             {/* SUBPANEL: QUERY PARAMS */}
             {subTab === "params" && (
               <div className="flex flex-col gap-2 h-full">
-                <div className="flex justify-between items-center text-[10px] text-neutral-500 mb-1">
-                  <span>URL Parameter Overrides (synchronizes with request URL automatically)</span>
+                <div className="flex justify-between items-center text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1">
+                  <span>Query Parameters</span>
                   <button
                     onClick={handleAddParamRow}
                     className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 cursor-pointer"
@@ -1474,8 +1440,8 @@ export default function RequestWorkspace({
                     Authorization Type
                   </label>
                   <div className="flex items-center gap-1 bg-neutral-900 p-0.5 rounded-lg border border-neutral-850 text-[10px]">
-                    {(["none", "bearer", "basic", "apiKey"] as const).map((type) => {
-                      const labels: Record<string, string> = { none: "No Auth", bearer: "Bearer Token", basic: "Basic Auth", apiKey: "API Key" };
+                    {(["none", "bearer", "basic"] as const).map((type) => {
+                      const labels: Record<string, string> = { none: "No Auth", bearer: "Bearer Token", basic: "Basic Auth" };
                       return (
                         <button
                           key={type}
@@ -1558,58 +1524,7 @@ export default function RequestWorkspace({
                   </div>
                 )}
 
-                {activeRequest.auth.type === "apiKey" && (
-                  <div className="space-y-3 animate-fade-in border border-neutral-900 p-3.5 rounded-lg bg-neutral-950/40 font-sans">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
-                          Key (Header or Query Name)
-                        </label>
-                        <input
-                          type="text"
-                          value={activeRequest.auth.apiKeyKey || ""}
-                          onChange={(e) => handleAuthChange({ apiKeyKey: e.target.value })}
-                          onKeyUp={handleInputCheckVar}
-                          onSelect={handleInputCheckVar}
-                          onMouseUp={handleInputCheckVar}
-                          onBlur={handleInputBlur}
-                          placeholder="x-api-key"
-                          className="w-full bg-neutral-950 border border-neutral-850 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-emerald-500 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
-                          Value
-                        </label>
-                        <input
-                          type="text"
-                          value={activeRequest.auth.apiKeyValue || ""}
-                          onChange={(e) => handleAuthChange({ apiKeyValue: e.target.value })}
-                          onKeyUp={handleInputCheckVar}
-                          onSelect={handleInputCheckVar}
-                          onMouseUp={handleInputCheckVar}
-                          onBlur={handleInputBlur}
-                          placeholder="api_secret_token"
-                          className="w-full bg-neutral-950 border border-neutral-850 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-emerald-500 font-mono"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
-                        Add API Key To
-                      </label>
-                      <CustomSelect
-                        value={activeRequest.auth.apiKeyAddTo || "header"}
-                        onChange={(val) => handleAuthChange({ apiKeyAddTo: val as any })}
-                        options={[
-                          { value: "header", label: "Request Headers" },
-                          { value: "query", label: "URL Query Params" },
-                        ]}
-                        className="w-48"
-                      />
-                    </div>
-                  </div>
-                )}
+
               </div>
             )}
 

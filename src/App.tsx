@@ -72,7 +72,20 @@ export default function App() {
   const [theme, setTheme] = useState<string>("dark");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"general" | "themes" | "shortcuts" | "about" | "import">("general");
-  const [fontFamily, setFontFamily] = useState<string>("'Inter', sans-serif");
+  const [fontFamily, setFontFamily] = useState<string>("'Plus Jakarta Sans', sans-serif");
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(2.0, Number((prev + 0.1).toFixed(1))));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(0.5, Number((prev - 0.1).toFixed(1))));
+  };
+
+  const handleZoomReset = () => {
+    setZoomLevel(1.0);
+  };
 
   const openSettingsToTab = (tab: "general" | "themes" | "shortcuts" | "about" | "import") => {
     setSettingsTab(tab);
@@ -111,6 +124,11 @@ export default function App() {
 
       const pResponseHeight = await db.uiState.get("responsePaneHeight");
       if (pResponseHeight !== undefined) setResponsePaneHeight(pResponseHeight.value);
+
+      const pZoom = await db.uiState.get("zoomLevel");
+      if (pZoom) {
+        setZoomLevel(pZoom.value);
+      }
 
       // Automatically select the active tab or first tab
       const dbTabs = await db.tabs.orderBy("order").toArray();
@@ -169,9 +187,36 @@ export default function App() {
     }
   }, [layoutMode, isInitialized]);
 
+  // Sync zoom level with DOM and persist
+  useEffect(() => {
+    document.body.style.zoom = `${zoomLevel}`;
+    if (isInitialized) {
+      db.uiState.put({ key: "zoomLevel", value: zoomLevel });
+    }
+  }, [zoomLevel, isInitialized]);
+
   // Global Keyboard shortcuts
   useEffect(() => {
     const handleGlobalKeys = async (e: KeyboardEvent) => {
+      // Zoom Controls (Ctrl + +, Ctrl + -, Ctrl + 0)
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          handleZoomIn();
+          return;
+        }
+        if (e.key === "-") {
+          e.preventDefault();
+          handleZoomOut();
+          return;
+        }
+        if (e.key === "0") {
+          e.preventDefault();
+          handleZoomReset();
+          return;
+        }
+      }
+
       // Don't fire shortcuts if user is typing inside input or editor
       const activeEl = document.activeElement;
       if (activeEl) {
@@ -658,7 +703,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-neutral-950 font-sans text-neutral-200">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-neutral-950 font-sans text-neutral-200">
       {/* Three Column Grid Workspace */}
       <div className="flex-1 flex min-h-0 w-full relative">
         {/* COLUMN 1: SIDEBAR */}
@@ -905,6 +950,27 @@ export default function App() {
 
         {/* Right side: Layout control toggles and variables settings icon */}
         <div className="flex items-center gap-2">
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 border-r border-neutral-800 pr-2 mr-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <button
+              onClick={handleZoomOut}
+              className="p-0.5 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white cursor-pointer font-bold text-xs leading-none w-4 h-4 flex items-center justify-center bg-transparent border-none"
+              title="Zoom Out (Ctrl+-)"
+            >
+              -
+            </button>
+            <span className="text-[9px] font-mono text-neutral-400 min-w-[32px] text-center">
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              onClick={handleZoomIn}
+              className="p-0.5 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white cursor-pointer font-bold text-xs leading-none w-4 h-4 flex items-center justify-center bg-transparent border-none"
+              title="Zoom In (Ctrl++)"
+            >
+              +
+            </button>
+          </div>
+
           {/* Variables Modal Trigger */}
           <button
             onClick={() => setVariablesOpen(true)}

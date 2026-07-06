@@ -17,7 +17,9 @@ import {
   Edit3,
   Upload,
   FolderDown,
-  X
+  X,
+  ArrowUpDown,
+  Check
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -56,6 +58,116 @@ export default function CollectionSidebar({
   const collections = (useLiveQuery(() => db.collections.orderBy("createdAt").toArray()) as Collection[]) || [];
   const folders = (useLiveQuery(() => db.folders.orderBy("createdAt").toArray()) as Folder[]) || [];
   const requests = (useLiveQuery(() => db.requests.orderBy("createdAt").toArray()) as RequestItem[]) || [];
+
+  // Collections list sorting (by time or name)
+  const [collectionsListSort, setCollectionsListSortState] = useState<"time" | "name">(() => {
+    return (localStorage.getItem("restman-collections-list-sort") as "time" | "name") || "time";
+  });
+
+  const setCollectionsListSort = (val: "time" | "name" | ((prev: "time" | "name") => "time" | "name")) => {
+    setCollectionsListSortState((prev) => {
+      const nextVal = typeof val === "function" ? val(prev) : val;
+      localStorage.setItem("restman-collections-list-sort", nextVal);
+      return nextVal;
+    });
+  };
+
+  // Map collectionId -> sort type ("default" | "alphabetical")
+  const [collectionSorts, setCollectionSorts] = useState<Record<string, "default" | "alphabetical">>(() => {
+    const cached: Record<string, "default" | "alphabetical"> = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("restman-sort-")) {
+          const collId = key.replace("restman-sort-", "");
+          const val = localStorage.getItem(key);
+          if (val === "default" || val === "alphabetical") {
+            cached[collId] = val;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load collection sort settings from localStorage:", err);
+    }
+    return cached;
+  });
+
+  const updateCollectionSort = (collId: string, sortMode: "default" | "alphabetical") => {
+    localStorage.setItem(`restman-sort-${collId}`, sortMode);
+    setCollectionSorts((prev) => ({
+      ...prev,
+      [collId]: sortMode,
+    }));
+  };
+
+  const handleDuplicateFolder = async (folder: Folder) => {
+    try {
+      const newFolderId = `folder-copy-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      
+      await db.transaction("rw", [db.folders, db.requests], async () => {
+        // 1. Create duplicate folder
+        await db.folders.add({
+          id: newFolderId,
+          collectionId: folder.collectionId,
+          parentFolderId: folder.parentFolderId,
+          name: `${folder.name} (Copy)`,
+          createdAt: Date.now(),
+        });
+
+        // 2. Map old folder IDs to new folder IDs for recursive structure
+        const folderIdMap: Record<string, string> = { [folder.id]: newFolderId };
+        const allCollFolders = folders.filter((f) => f.collectionId === folder.collectionId);
+
+        const duplicateSubfolder = async (sub: Folder, newParentId: string) => {
+          const nextFolderId = `folder-copy-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          folderIdMap[sub.id] = nextFolderId;
+
+          await db.folders.add({
+            id: nextFolderId,
+            collectionId: folder.collectionId,
+            parentFolderId: newParentId,
+            name: sub.name,
+            createdAt: Date.now(),
+          });
+
+          // Duplicate subfolders recursively
+          const nestedSubs = allCollFolders.filter((f) => f.parentFolderId === sub.id);
+          for (const nested of nestedSubs) {
+            await duplicateSubfolder(nested, nextFolderId);
+          }
+        };
+
+        // Duplicate nested folders
+        const immediateSubfolders = allCollFolders.filter((f) => f.parentFolderId === folder.id);
+        for (const sub of immediateSubfolders) {
+          await duplicateSubfolder(sub, newFolderId);
+        }
+
+        // 3. Duplicate all requests that belong to any duplicated folders
+        const allCollRequests = requests.filter((r) => r.collectionId === folder.collectionId);
+        for (const req of allCollRequests) {
+          if (req.folderId && folderIdMap[req.folderId]) {
+            const newReqId = `req-copy-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+            await db.requests.add({
+              ...req,
+              id: newReqId,
+              collectionId: folder.collectionId,
+              folderId: folderIdMap[req.folderId],
+              name: req.name,
+              pinned: false,
+              favorite: false,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      });
+
+      setExpandedPaths((prev) => ({ ...prev, [newFolderId]: true }));
+    } catch (err) {
+      console.error("Failed to duplicate folder:", err);
+    }
+  };
 
   // Local search state with debouncing
   const [localSearch, setLocalSearch] = useState("");
@@ -154,18 +266,26 @@ export default function CollectionSidebar({
   }, [folders, filteredRequests, search]);
 
   const filteredCollections = useMemo(() => {
-    if (!search.trim()) return collections;
-    const matchedRequestCollectionIds = new Set(filteredRequests.map((r) => r.collectionId));
-    // Also include collections that contain matched folders
-    const matchedFolderCollectionIds = new Set(filteredFolders.map((f) => f.collectionId));
+    let result = collections;
+    if (search.trim()) {
+      const matchedRequestCollectionIds = new Set(filteredRequests.map((r) => r.collectionId));
+      // Also include collections that contain matched folders
+      const matchedFolderCollectionIds = new Set(filteredFolders.map((f) => f.collectionId));
 
-    return collections.filter(
-      (c) =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        matchedRequestCollectionIds.has(c.id) ||
-        matchedFolderCollectionIds.has(c.id)
-    );
-  }, [collections, filteredRequests, filteredFolders, search]);
+      result = collections.filter(
+        (c) =>
+          c.name.toLowerCase().includes(search.toLowerCase()) ||
+          matchedRequestCollectionIds.has(c.id) ||
+          matchedFolderCollectionIds.has(c.id)
+      );
+    }
+    // Apply list header sorting
+    if (collectionsListSort === "name") {
+      return [...result].sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      return [...result].sort((a, b) => a.createdAt - b.createdAt);
+    }
+  }, [collections, filteredRequests, filteredFolders, search, collectionsListSort]);
 
   // Pinned and Favorites lists
   const pinnedRequests = useMemo(() => requests.filter((r) => r.pinned), [requests]);
@@ -468,9 +588,19 @@ export default function CollectionSidebar({
     const isExpanded = !!expandedNodes[folder.id];
     const isEditing = renameId === folder.id;
 
+    const sortOrder = collectionSorts[folder.collectionId] || "default";
+
     // Get immediate children requests
     const childRequests = filteredRequests.filter((r) => r.folderId === folder.id);
     const childSubfolders = filteredFolders.filter((f) => f.parentFolderId === folder.id);
+
+    const sortedSubfolders = sortOrder === "alphabetical"
+      ? [...childSubfolders].sort((a, b) => a.name.localeCompare(b.name))
+      : childSubfolders;
+
+    const sortedRequests = sortOrder === "alphabetical"
+      ? [...childRequests].sort((a, b) => a.name.localeCompare(b.name))
+      : childRequests;
 
     return (
       <div key={folder.id} className="flex flex-col select-none">
@@ -546,7 +676,26 @@ export default function CollectionSidebar({
               </button>
 
               {activeMenuId === folder.id && (
-                <div className="absolute right-0 top-6 z-30 w-32 rounded-lg border border-neutral-800 bg-neutral-950 p-1 shadow-xl text-[10px] font-semibold text-neutral-400">
+                <div className="absolute right-0 top-6 z-30 w-36 rounded-lg border border-neutral-800 bg-neutral-950 p-1 shadow-xl text-[10px] font-semibold text-neutral-400 font-sans">
+                  <button
+                    onClick={() => {
+                      handleCreateRequest(folder.collectionId, folder.id);
+                      setActiveMenuId(null);
+                    }}
+                    className="w-full text-left px-2 py-1.5 hover:bg-neutral-900 rounded flex items-center gap-1.5 hover:text-white"
+                  >
+                    <Plus className="h-3 w-3 text-emerald-400" /> Add Request
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleCreateFolder(folder.collectionId, folder.id);
+                      setActiveMenuId(null);
+                    }}
+                    className="w-full text-left px-2 py-1.5 hover:bg-neutral-900 rounded flex items-center gap-1.5 hover:text-white"
+                  >
+                    <FolderPlus className="h-3 w-3 text-blue-400" /> Add Folder
+                  </button>
+                  <div className="border-t border-neutral-900 my-1"></div>
                   <button
                     onClick={() => {
                       setRenameId(folder.id);
@@ -555,6 +704,15 @@ export default function CollectionSidebar({
                     className="w-full text-left px-2 py-1.5 hover:bg-neutral-900 rounded flex items-center gap-1.5 hover:text-white"
                   >
                     <Edit3 className="h-3 w-3" /> Rename
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleDuplicateFolder(folder);
+                      setActiveMenuId(null);
+                    }}
+                    className="w-full text-left px-2 py-1.5 hover:bg-neutral-900 rounded flex items-center gap-1.5 hover:text-white"
+                  >
+                    <Copy className="h-3 w-3" /> Duplicate
                   </button>
                   <button
                     onClick={() => {
@@ -582,10 +740,10 @@ export default function CollectionSidebar({
               className="overflow-hidden"
             >
               {/* Nested folders */}
-              {childSubfolders.map((f) => renderTreeFolder(f, depth + 1))}
+              {sortedSubfolders.map((f) => renderTreeFolder(f, depth + 1))}
 
               {/* Nested requests */}
-              {childRequests.map((r) => renderTreeRequest(r, depth + 1))}
+              {sortedRequests.map((r) => renderTreeRequest(r, depth + 1))}
 
               {childSubfolders.length === 0 && childRequests.length === 0 && (
                 <span
@@ -748,9 +906,16 @@ export default function CollectionSidebar({
       >
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* Official Restman R logo */}
-          <svg viewBox="0 0 100 100" className="h-4.5 w-4.5 shrink-0">
-            <rect width="100" height="100" rx="22" fill="var(--accent-color)"/>
-            <text y="72" x="26" fontFamily="sans-serif" fontSize="62" fontWeight="900" fill="#ffffff">R</text>
+          <svg viewBox="0 0 500 500" className="h-4.5 w-4.5 shrink-0">
+            <circle cx="250" cy="250" r="230" fill="#FF6C37" />
+            <g fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M170 360 V160" />
+              <path d="M170 160 H270 C330 160, 330 250, 270 250 H170" />
+              <path d="M245 250 L335 360" />
+              <path d="M240 195 H265 L285 215 L265 235 H240 Z" fill="#FFFFFF" stroke-width="0" />
+            </g>
+            <path d="M120 220 H140" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
+            <path d="M110 260 H135" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.4"/>
           </svg>
           <span className="text-[11px] font-black tracking-widest text-sidebar-text uppercase font-sans">RestMan</span>
         </div>
@@ -800,15 +965,24 @@ export default function CollectionSidebar({
 
         {/* Collections tree section */}
         <div>
-          <div className="px-2 py-1 text-[10px] font-bold text-neutral-500 uppercase tracking-widest flex items-center justify-between">
+          <div className="px-2 py-1 text-[10px] font-bold text-neutral-500 uppercase tracking-widest flex items-center justify-between select-none">
             <span>Collections</span>
-            <button
-              onClick={handleCreateCollection}
-              className="text-neutral-500 hover:text-white p-0.5 cursor-pointer transition-colors"
-              title="Create Collection"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <button
+                onClick={() => setCollectionsListSort(prev => prev === "time" ? "name" : "time")}
+                className={`p-0.5 rounded cursor-pointer transition-colors ${collectionsListSort === "name" ? "text-emerald-400 hover:text-emerald-300" : "text-neutral-500 hover:text-white"}`}
+                title={collectionsListSort === "time" ? "Sort collections by Name (A-Z)" : "Sort collections by Date Created"}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleCreateCollection}
+                className="text-neutral-500 hover:text-white p-0.5 cursor-pointer transition-colors"
+                title="Create Collection"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1 mt-1 font-sans">
@@ -820,9 +994,19 @@ export default function CollectionSidebar({
               const isExpanded = !!expandedNodes[coll.id];
               const isEditing = renameId === coll.id;
 
+              const sortOrder = collectionSorts[coll.id] || "default";
+
               // Filter root items
               const collRootRequests = filteredRequests.filter((r) => r.collectionId === coll.id && r.folderId === null);
               const collRootFolders = filteredFolders.filter((f) => f.collectionId === coll.id && f.parentFolderId === null);
+
+              const sortedRootFolders = sortOrder === "alphabetical"
+                ? [...collRootFolders].sort((a, b) => a.name.localeCompare(b.name))
+                : collRootFolders;
+
+              const sortedRootRequests = sortOrder === "alphabetical"
+                ? [...collRootRequests].sort((a, b) => a.name.localeCompare(b.name))
+                : collRootRequests;
 
               return (
                 <div key={coll.id} className="flex flex-col select-none">
@@ -889,7 +1073,26 @@ export default function CollectionSidebar({
                         </button>
 
                         {activeMenuId === coll.id && (
-                          <div className="absolute right-0 top-6 z-30 w-32 rounded-lg border border-neutral-800 bg-neutral-950 p-1 shadow-xl text-[10px] font-semibold text-neutral-400">
+                          <div className="absolute right-0 top-6 z-30 w-52 rounded-lg border border-neutral-800 bg-neutral-950 p-1 shadow-xl text-[10px] font-semibold text-neutral-400 font-sans">
+                            <button
+                              onClick={() => {
+                                handleCreateRequest(coll.id, null);
+                                setActiveMenuId(null);
+                              }}
+                              className="w-full text-left px-2 py-1.5 hover:bg-neutral-900 rounded flex items-center gap-1.5 hover:text-white"
+                            >
+                              <Plus className="h-3 w-3 text-emerald-400" /> Add Request
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleCreateFolder(coll.id, null);
+                                setActiveMenuId(null);
+                              }}
+                              className="w-full text-left px-2 py-1.5 hover:bg-neutral-900 rounded flex items-center gap-1.5 hover:text-white"
+                            >
+                              <FolderPlus className="h-3 w-3 text-blue-400" /> Add Folder
+                            </button>
+                            <div className="border-t border-neutral-900 my-1"></div>
                             <button
                               onClick={() => {
                                 setRenameId(coll.id);
@@ -917,6 +1120,30 @@ export default function CollectionSidebar({
                             >
                               <FolderDown className="h-3 w-3" /> Export Collection
                             </button>
+                            <div className="border-t border-neutral-900 my-1"></div>
+                            <div className="px-2 py-1 text-[9px] font-bold text-neutral-500 uppercase">Sort</div>
+                            <button
+                              onClick={() => {
+                                updateCollectionSort(coll.id, "default");
+                              }}
+                              className="w-full text-left px-2 py-1 hover:bg-neutral-900 rounded flex items-center justify-between hover:text-white text-[10px]"
+                            >
+                              <span>Folders first, Default</span>
+                              {(collectionSorts[coll.id] || "default") === "default" && <Check className="h-3 w-3 text-emerald-400" />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                updateCollectionSort(coll.id, "alphabetical");
+                              }}
+                              className="w-full text-left px-2 py-1 hover:bg-neutral-900 rounded flex items-center justify-between hover:text-white text-[10px]"
+                            >
+                              <span>Folders first, A to Z</span>
+                              {collectionSorts[coll.id] === "alphabetical" && <Check className="h-3 w-3 text-emerald-400" />}
+                            </button>
+                            <div className="px-2 py-0.5 text-[8px] font-normal text-neutral-600 italic leading-tight mb-1">
+                              This only updates your view in the sidebar.
+                            </div>
+                            <div className="border-t border-neutral-900 my-1"></div>
                             <button
                               onClick={() => {
                                 handleDeleteCollection(coll.id);
@@ -943,10 +1170,10 @@ export default function CollectionSidebar({
                         className="overflow-hidden"
                       >
                         {/* Folders in collection root */}
-                        {collRootFolders.map((folder) => renderTreeFolder(folder, 1))}
+                        {sortedRootFolders.map((folder) => renderTreeFolder(folder, 1))}
 
                         {/* Requests in collection root */}
-                        {collRootRequests.map((req) => renderTreeRequest(req, 1))}
+                        {sortedRootRequests.map((req) => renderTreeRequest(req, 1))}
 
                         {collRootFolders.length === 0 && collRootRequests.length === 0 && (
                           <span className="text-[10px] text-neutral-600 italic py-1 px-8 block">
