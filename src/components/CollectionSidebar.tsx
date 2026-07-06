@@ -1019,11 +1019,7 @@ export default function CollectionSidebar({
                       <span className="text-neutral-400">
                         {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </span>
-                      <svg viewBox="0 0 14 14" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ color: 'var(--accent-color)' }}>
-                        <line x1="1" y1="3.5" x2="13" y2="3.5"/>
-                        <line x1="1" y1="7" x2="9" y2="7"/>
-                        <line x1="1" y1="10.5" x2="13" y2="10.5"/>
-                      </svg>
+
 
                       {isEditing ? (
                         <input

@@ -76,7 +76,7 @@ export default function App() {
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
 
   const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(2.0, Number((prev + 0.1).toFixed(1))));
+    setZoomLevel((prev) => Math.min(3.0, Number((prev + 0.1).toFixed(1))));
   };
 
   const handleZoomOut = () => {
@@ -187,9 +187,9 @@ export default function App() {
     }
   }, [layoutMode, isInitialized]);
 
-  // Sync zoom level with DOM and persist
+  // Sync zoom level with DOM and persist (mapping 1.0 base UI zoom to 1.35 physical CSS zoom for readability)
   useEffect(() => {
-    document.body.style.zoom = `${zoomLevel}`;
+    document.body.style.zoom = `${zoomLevel * 1.35}`;
     if (isInitialized) {
       db.uiState.put({ key: "zoomLevel", value: zoomLevel });
     }
