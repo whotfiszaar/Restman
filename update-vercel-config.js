@@ -1,0 +1,16 @@
+import fs from 'fs';
+
+const vercelConfig = {
+  "buildCommand": "npm run build && cp landing.html dist/landing.html",
+  "outputDirectory": "dist",
+  "framework": null,
+  "routes": [
+    { "src": "/landing.html", "dest": "/landing.html" },
+    { "src": "/index.html", "dest": "/index.html" },
+    { "src": "^/$", "dest": "/landing.html" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+};
+
+fs.writeFileSync('vercel.json', JSON.stringify(vercelConfig, null, 2));
+console.log("vercel.json updated successfully!");
