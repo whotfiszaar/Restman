@@ -38,21 +38,20 @@
 
 /* Theme definitions */
 [data-theme="light"] {
-  /* Keep sidebar dark with high contrast text in light theme */
-  --sidebar-bg: #151515;
-  --sidebar-text: #e1e1e1;
-  --sidebar-text-muted: #858585;
-  --sidebar-border: #2d2d2d;
-  --sidebar-selection: #252526;
+  --sidebar-bg: #f4f4f5;
+  --sidebar-text: #18181b;
+  --sidebar-text-muted: #71717a;
+  --sidebar-border: #e4e4e7;
+  --sidebar-selection: #e4e4e7;
 
-  --app-bg: #fafafa;
-  --tab-inactive-bg: #e8e8e8;
-  --border-color: #d4d4d8;
-  --selection-bg: #dde6f0;
-  --text-muted: #52525b;
-  --text-main: #09090b;
-  --accent-color: #0066cc;
-  --accent-hover-color: #0052a3;
+  --app-bg: #ffffff;
+  --tab-inactive-bg: #f4f4f5;
+  --border-color: #e4e4e7;
+  --selection-bg: #e4e4e7;
+  --text-muted: #71717a;
+  --text-main: #18181b;
+  --accent-color: #ff6c37;
+  --accent-hover-color: #e05a28;
   color-scheme: light;
 }
 
@@ -373,21 +372,34 @@ select:hover {
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234b5563' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
 }
 
-/* Light theme text color overrides — ensure near-black text on light backgrounds */
-[data-theme="light"] .text-neutral-200,
-[data-theme="high-contrast-light"] .text-neutral-200,
-[data-theme="ayu-light"] .text-neutral-200,
-[data-theme="night-owl-light"] .text-neutral-200,
-[data-theme="solarized-light"] .text-neutral-200 {
-  color: var(--text-main) !important;
-}
-
 [data-theme="light"] .text-white,
 [data-theme="high-contrast-light"] .text-white,
 [data-theme="ayu-light"] .text-white,
 [data-theme="night-owl-light"] .text-white,
 [data-theme="solarized-light"] .text-white {
   color: var(--text-main) !important;
+}
+
+/* Ensure neutral-300 and neutral-400 classes adapt to high contrast dark text in light mode */
+[data-theme="light"] .text-neutral-200,
+[data-theme="high-contrast-light"] .text-neutral-200,
+[data-theme="ayu-light"] .text-neutral-200,
+[data-theme="night-owl-light"] .text-neutral-200,
+[data-theme="solarized-light"] .text-neutral-200,
+[data-theme="light"] .text-neutral-300,
+[data-theme="high-contrast-light"] .text-neutral-300,
+[data-theme="ayu-light"] .text-neutral-300,
+[data-theme="night-owl-light"] .text-neutral-300,
+[data-theme="solarized-light"] .text-neutral-300 {
+  color: var(--text-main) !important;
+}
+
+[data-theme="light"] .text-neutral-400,
+[data-theme="high-contrast-light"] .text-neutral-400,
+[data-theme="ayu-light"] .text-neutral-400,
+[data-theme="night-owl-light"] .text-neutral-400,
+[data-theme="solarized-light"] .text-neutral-400 {
+  color: var(--text-muted) !important;
 }
 
 [data-theme="light"] .placeholder-neutral-600::placeholder,
