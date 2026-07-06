@@ -1,4 +1,4 @@
-# RestMan
+# Apify
 
 > A blazing-fast, offline-first REST API client built for developers who demand precision.
 
@@ -9,7 +9,7 @@
 - Collections, folders, and request management with drag-and-drop import
 - Multiple response views: Pretty JSON, Table, Cards, JSON Explorer, Insights, Diff, Headers, History
 - Adaptive themes: VS Code Dark, Dracula, Monokai, Ayu Dark, Solarized Dark, Classic Light
-- CRED-inspired minimalist 2026 design — ultra-thin scrollbars, geometric icons
+- CRED-inspired minimalist 2026 design â€” ultra-thin scrollbars, geometric icons
 - Offline-first: all data stored locally in IndexedDB
 
 ## Download
