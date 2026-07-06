@@ -128,6 +128,132 @@
   color-scheme: dark;
 }
 
+/* ── dark (explicit — mirrors :root) ───────────── */
+[data-theme="dark"] {
+  --sidebar-bg: #151515;
+  --sidebar-text: #e1e1e1;
+  --sidebar-text-muted: #858585;
+  --sidebar-border: #2d2d2d;
+  --sidebar-selection: #252526;
+  --app-bg: #1e1e1e;
+  --tab-inactive-bg: #181818;
+  --border-color: #2d2d2d;
+  --selection-bg: #2d2d2d;
+  --text-muted: #858585;
+  --text-main: #e1e1e1;
+  --accent-color: #ff6c37;
+  --accent-hover-color: #e05a28;
+  color-scheme: dark;
+}
+
+/* ── high-contrast-dark ─────────────────────────── */
+[data-theme="high-contrast-dark"] {
+  --sidebar-bg: #000000;
+  --sidebar-text: #ffffff;
+  --sidebar-text-muted: #aaaaaa;
+  --sidebar-border: #555555;
+  --sidebar-selection: #1a1a1a;
+  --app-bg: #000000;
+  --tab-inactive-bg: #0d0d0d;
+  --border-color: #555555;
+  --selection-bg: #1a1a1a;
+  --text-muted: #aaaaaa;
+  --text-main: #ffffff;
+  --accent-color: #00ffff;
+  --accent-hover-color: #00cccc;
+  color-scheme: dark;
+}
+
+/* ── high-contrast-light ────────────────────────── */
+[data-theme="high-contrast-light"] {
+  --sidebar-bg: #000000;
+  --sidebar-text: #ffffff;
+  --sidebar-text-muted: #cccccc;
+  --sidebar-border: #000000;
+  --sidebar-selection: #1a1a1a;
+  --app-bg: #ffffff;
+  --tab-inactive-bg: #f0f0f0;
+  --border-color: #000000;
+  --selection-bg: #d0d0d0;
+  --text-muted: #333333;
+  --text-main: #000000;
+  --accent-color: #0000ff;
+  --accent-hover-color: #0000cc;
+  color-scheme: light;
+}
+
+/* ── ayu-light ──────────────────────────────────── */
+[data-theme="ayu-light"] {
+  --sidebar-bg: #f0ede4;
+  --sidebar-text: #5c6773;
+  --sidebar-text-muted: #a0a09a;
+  --sidebar-border: #d8d0c0;
+  --sidebar-selection: #e6dfd0;
+  --app-bg: #fafafa;
+  --tab-inactive-bg: #f0ede4;
+  --border-color: #d8d0c0;
+  --selection-bg: #e6dfd0;
+  --text-muted: #a0a09a;
+  --text-main: #5c6773;
+  --accent-color: #f29718;
+  --accent-hover-color: #e08810;
+  color-scheme: light;
+}
+
+/* ── night-owl-dark ─────────────────────────────── */
+[data-theme="night-owl-dark"] {
+  --sidebar-bg: #01111d;
+  --sidebar-text: #d6deeb;
+  --sidebar-text-muted: #637777;
+  --sidebar-border: #1d3b53;
+  --sidebar-selection: #0b2942;
+  --app-bg: #011627;
+  --tab-inactive-bg: #01111d;
+  --border-color: #1d3b53;
+  --selection-bg: #0b2942;
+  --text-muted: #637777;
+  --text-main: #d6deeb;
+  --accent-color: #7fdbca;
+  --accent-hover-color: #5fb3a4;
+  color-scheme: dark;
+}
+
+/* ── night-owl-light ────────────────────────────── */
+[data-theme="night-owl-light"] {
+  --sidebar-bg: #dae1e7;
+  --sidebar-text: #403f53;
+  --sidebar-text-muted: #90a0b0;
+  --sidebar-border: #c0ccd8;
+  --sidebar-selection: #ccd8e0;
+  --app-bg: #f0f4f8;
+  --tab-inactive-bg: #dae1e7;
+  --border-color: #c0ccd8;
+  --selection-bg: #ccd8e0;
+  --text-muted: #90a0b0;
+  --text-main: #403f53;
+  --accent-color: #2aa198;
+  --accent-hover-color: #1d8a82;
+  color-scheme: light;
+}
+
+/* ── solarized-light ────────────────────────────── */
+[data-theme="solarized-light"] {
+  --sidebar-bg: #eee8d5;
+  --sidebar-text: #657b83;
+  --sidebar-text-muted: #93a1a1;
+  --sidebar-border: #cfc8b4;
+  --sidebar-selection: #ddd8c4;
+  --app-bg: #fdf6e3;
+  --tab-inactive-bg: #f5f0e0;
+  --border-color: #cfc8b4;
+  --selection-bg: #ddd8c4;
+  --text-muted: #93a1a1;
+  --text-main: #657b83;
+  --accent-color: #b58900;
+  --accent-hover-color: #8a6700;
+  color-scheme: light;
+}
+
 @theme {
   /* Override Tailwind neutrals with proper visual granularity */
   --color-neutral-950: var(--sidebar-bg); /* Sidebar background */
@@ -337,4 +463,32 @@ select:hover {
   height: 2px;
   background-color: var(--accent-color);
   animation: linear-progress 1.5s infinite linear;
+}
+
+/* Premium Bouncing Dots Loading Animation */
+@keyframes bouncing-dot {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+.bouncing-dot {
+  animation: bouncing-dot 0.6s infinite ease-in-out;
+}
+
+.bouncing-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.bouncing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.bouncing-dot:nth-child(3) {
+  animation-delay: 0.3s;
 }

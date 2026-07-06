@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { db, type RequestItem, type RequestHistoryItem } from "../db/db";
+import { showToast } from "../utils/toast";
 import ModernConfirmModal from "./ModernConfirmModal";
 import Editor from "@monaco-editor/react";
 import {
@@ -317,7 +318,7 @@ export default function ResponseWorkspace({
         url: hist.url,
         updatedAt: Date.now(),
       });
-      alert(`Restored execution parameters for [${hist.method}] into active workspace. Click Send to rerun!`);
+      showToast(`Restored [${hist.method}] parameters into active workspace — click Send to rerun!`, "success");
     } catch (err) {
       console.error("Failed to restore history execution params:", err);
     }

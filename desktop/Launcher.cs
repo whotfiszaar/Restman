@@ -9,7 +9,7 @@ using System.Drawing;
 
 class ExtractSplash : Form {
     public ExtractSplash() {
-        this.Text = "Restman Studio Setup";
+        this.Text = "Apify Studio Setup";
         this.Size = new Size(420, 160);
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
         this.StartPosition = FormStartPosition.CenterScreen;
@@ -20,7 +20,7 @@ class ExtractSplash : Form {
         this.ShowInTaskbar = true;
 
         Label lblTitle = new Label() {
-            Text = "RESTMAN STUDIO",
+            Text = "APIFY STUDIO",
             ForeColor = Color.FromArgb(16, 185, 129), // emerald-500 color
             Font = new Font("Segoe UI", 12, FontStyle.Bold),
             Location = new Point(24, 24),
@@ -50,15 +50,15 @@ class ExtractSplash : Form {
 class Launcher {
     [STAThread]
     static void Main(string[] args) {
-        string appName = "Restman-App";
+        string appName = "Apify-App";
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string targetDir = Path.Combine(localAppData, appName);
-        string exePath = Path.Combine(targetDir, "Restman.exe");
-        string errorLogPath = Path.Combine(localAppData, "Restman-App-error.txt");
+        string exePath = Path.Combine(targetDir, "Apify.exe");
+        string errorLogPath = Path.Combine(localAppData, "Apify-App-error.txt");
 
         // Mutex SINGLE INSTANCE Check: prevents race conditions and file-locking during duplicate execution
         bool createdNew;
-        using (Mutex mutex = new Mutex(true, "RestmanMutex-SingleInstance-Setup-Akib", out createdNew)) {
+        using (Mutex mutex = new Mutex(true, "ApifyMutex-SingleInstance-Setup-Akib", out createdNew)) {
             if (!createdNew) {
                 // If another launcher is running (already extracting or launching), exit quietly
                 return;
@@ -147,7 +147,7 @@ class Launcher {
                     splash.Dispose();
                 }
 
-                // Launch the unpacked Restman application
+                // Launch the unpacked Apify application
                 if (File.Exists(exePath)) {
                     string arguments = "";
                     if (args != null && args.Length > 0) {
@@ -167,7 +167,7 @@ class Launcher {
                     };
                     Process.Start(psi);
                 } else {
-                    File.AppendAllText(errorLogPath, "Unpacked Restman.exe not found at path: " + exePath + "\n");
+                    File.AppendAllText(errorLogPath, "Unpacked Apify.exe not found at path: " + exePath + "\n");
                 }
             } catch (Exception ex) {
                 File.AppendAllText(errorLogPath, "Global exception: " + ex.ToString() + "\n");

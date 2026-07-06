@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { showToast } from "../utils/toast";
 import { db, type Collection, type Folder, type RequestItem } from "../db/db";
 import { exportPostmanCollection } from "../utils/postmanExporter";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -576,7 +577,7 @@ export default function CollectionSidebar({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert(`Failed to export collection: ${err.message}`);
+      showToast(`Export failed: ${err.message}`, "error");
     }
   };
 
@@ -627,7 +628,7 @@ export default function CollectionSidebar({
           style={{ paddingLeft: `${depth * 10 + 4}px` }}
           className="group flex items-center justify-between py-1 px-2 rounded-md hover:bg-neutral-900/65 cursor-pointer text-xs transition-all relative text-neutral-400 hover:text-white"
         >
-          <div className="flex items-center gap-1.5 truncate max-w-[70%]">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate mr-2">
             <span className="text-neutral-500">
               {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </span>
@@ -790,7 +791,7 @@ export default function CollectionSidebar({
           isSelected ? "bg-neutral-900 border-l border-emerald-500 text-white" : "text-neutral-400 hover:text-neutral-200"
         }`}
       >
-        <div className="flex items-center gap-2 truncate max-w-[70%]">
+        <div className="flex items-center gap-2 min-w-0 flex-1 truncate mr-2">
           {getMethodBadge(req.method)}
 
           {isEditing ? (
@@ -922,19 +923,17 @@ export default function CollectionSidebar({
         className="px-3 border-b border-sidebar-border bg-sidebar-bg flex items-center justify-between shrink-0 h-[41px] select-none"
       >
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {/* Official Restman R logo */}
+           {/* Official Apify Logo */}
           <svg viewBox="0 0 500 500" className="h-4.5 w-4.5 shrink-0">
-            <circle cx="250" cy="250" r="230" fill="#FF6C37" />
-            <g fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M170 360 V160" />
-              <path d="M170 160 H270 C330 160, 330 250, 270 250 H170" />
-              <path d="M245 250 L335 360" />
-              <path d="M240 195 H265 L285 215 L265 235 H240 Z" fill="#FFFFFF" stroke-width="0" />
+            <rect width="500" height="500" rx="110" fill="#FF6C37"/>
+            <g transform="translate(45, 10)">
+              <path d="M150 380 L250 120 L350 380" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M185 290 H315" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round"/>
+              <circle cx="250" cy="120" r="16" fill="#FF6C37" stroke="#FFFFFF" stroke-width="8"/>
+              <circle cx="250" cy="290" r="16" fill="#FF6C37" stroke="#FFFFFF" stroke-width="8"/>
             </g>
-            <path d="M120 220 H140" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
-            <path d="M110 260 H135" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.4"/>
           </svg>
-          <span className="text-[11px] font-black tracking-widest text-sidebar-text uppercase font-sans">RestMan</span>
+          <span className="text-[11px] font-black tracking-widest text-sidebar-text uppercase font-sans">Apify</span>
         </div>
       </div>
 
@@ -1032,7 +1031,7 @@ export default function CollectionSidebar({
                     onClick={() => toggleNode(coll.id)}
                     className="group flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-neutral-900/65 cursor-pointer text-xs transition-colors text-white font-semibold"
                   >
-                    <div className="flex items-center gap-1.5 truncate max-w-[70%]">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate mr-2">
                       <span className="text-neutral-400">
                         {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </span>

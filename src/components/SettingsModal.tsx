@@ -552,7 +552,7 @@ export default function SettingsModal({
             }`}
           >
             <Info className="h-3.5 w-3.5 text-blue-400" />
-            <span>About RestMan</span>
+            <span>About Apify</span>
           </button>
         </div>
 
@@ -565,7 +565,7 @@ export default function SettingsModal({
               {activeTab === "themes" && "Visual Theme Selection"}
               {activeTab === "import" && "Import Postman Collections"}
               {activeTab === "shortcuts" && "Keyboard Shortcuts"}
-              {activeTab === "about" && "About RestMan Studio"}
+              {activeTab === "about" && "About Apify Studio"}
             </h3>
             <button
               onClick={onClose}
@@ -1202,7 +1202,7 @@ export default function SettingsModal({
                 ) : (
                   <div className="flex flex-col gap-3 font-sans">
                     <p className="text-[11px] text-neutral-400 leading-relaxed font-sans">
-                      RestMan will scan standard folders (AppData, Downloads, and Documents) to automatically detect Postman backups and collections, sync-ing them locally.
+                      Apify will scan standard folders (AppData, Downloads, and Documents) to automatically detect Postman backups and collections, sync-ing them locally.
                     </p>
 
                     {window.electronAPI?.isElectron ? (
@@ -1364,13 +1364,20 @@ export default function SettingsModal({
             {/* ABOUT TAB */}
             {activeTab === "about" && (
               <div className="flex flex-col items-center justify-center text-center gap-4 py-8 font-sans">
-                <div className="h-16 w-16 bg-[#007acc]/10 border border-[#007acc]/30 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/2">
-                  {/* Settings icon is static in premium feel */}
-                  <Settings className="h-8 w-8 text-[#007acc]" />
+                <div className="h-16 w-16 bg-[#FF6C37]/10 border border-[#FF6C37]/30 rounded-2xl flex items-center justify-center shadow-xl">
+                  <svg viewBox="0 0 500 500" className="h-10 w-10 shrink-0">
+                    <rect width="500" height="500" rx="110" fill="#FF6C37"/>
+                    <g transform="translate(45, 10)">
+                      <path d="M150 380 L250 120 L350 380" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M185 290 H315" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round"/>
+                      <circle cx="250" cy="120" r="16" fill="#FF6C37" stroke="#FFFFFF" stroke-width="8"/>
+                      <circle cx="250" cy="290" r="16" fill="#FF6C37" stroke="#FFFFFF" stroke-width="8"/>
+                    </g>
+                  </svg>
                 </div>
 
                 <div>
-                  <h4 className="text-base font-black tracking-widest text-white uppercase font-sans">RestMan</h4>
+                  <h4 className="text-base font-black tracking-widest text-white uppercase font-sans">Apify</h4>
                   <p className="text-[10px] text-neutral-500 mt-0.5">Premium API Workspace Studio</p>
                 </div>
 

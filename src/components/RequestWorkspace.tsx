@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { showToast } from "../utils/toast";
 import { db, type RequestItem, type RequestTab, type Variable } from "../db/db";
 import { parseUrlAndParams, buildUrlWithParams, detectSmartRequestType, resolveVariables } from "../utils/urlHelper";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -166,6 +167,23 @@ export default function RequestWorkspace({
   const urlInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
+
+  // States for text selection right-click variable creation
+  const [selectionContextMenu, setSelectionContextMenu] = useState<{
+    x: number;
+    y: number;
+    text: string;
+    targetInput: HTMLInputElement | HTMLTextAreaElement;
+  } | null>(null);
+
+  const [createVariableData, setCreateVariableData] = useState<{
+    value: string;
+    inputElement: HTMLInputElement | HTMLTextAreaElement;
+  } | null>(null);
+
+  const [newVarName, setNewVarName] = useState("");
+  const [newVarValue, setNewVarValue] = useState("");
+  const [newVarDesc, setNewVarDesc] = useState("");
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     title: string;
@@ -320,7 +338,10 @@ export default function RequestWorkspace({
   }, [localUrl, localParams, localHeaders, localBodyContent, localFormParams, activeRequest?.method, activeRequest?.auth]);
 
   useEffect(() => {
-    const closeMenu = () => setContextMenu(null);
+    const closeMenu = () => {
+      setContextMenu(null);
+      setSelectionContextMenu(null);
+    };
     window.addEventListener("click", closeMenu);
     return () => window.removeEventListener("click", closeMenu);
   }, []);
@@ -915,24 +936,69 @@ export default function RequestWorkspace({
 
   const handleTabContextMenu = (e: React.MouseEvent, tabId: string) => {
     e.preventDefault();
-    const menuWidth = 144;
-    const menuHeight = 120;
-    
-    let x = e.clientX;
-    let y = e.clientY;
-    
+    const menuWidth = 160;
+    const menuHeight = 128;
+    // Position menu BELOW the clicked tab element, not at cursor
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    let x = rect.left;
+    let y = rect.bottom + 2;
+
     if (x + menuWidth > window.innerWidth) {
       x = window.innerWidth - menuWidth - 8;
     }
     if (y + menuHeight > window.innerHeight) {
-      y = window.innerHeight - menuHeight - 8;
+      // If no space below, put above instead
+      y = rect.top - menuHeight - 2;
     }
 
-    setContextMenu({
-      x,
-      y,
-      tabId
-    });
+    setContextMenu({ x, y, tabId });
+  };
+
+  // Right-click context menu handler for text selection in inputs/textareas
+  const handleWorkspaceContextMenu = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+      const input = target as HTMLInputElement | HTMLTextAreaElement;
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      if (start !== null && end !== null && start !== end) {
+        const selectedText = input.value.substring(start, end).trim();
+        if (selectedText) {
+          e.preventDefault();
+          setSelectionContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            text: selectedText,
+            targetInput: input,
+          });
+        }
+      }
+    }
+  };
+
+  const replaceSelectionWithVar = (
+    input: HTMLInputElement | HTMLTextAreaElement,
+    varName: string
+  ) => {
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    if (start === null || end === null) return;
+
+    const originalValue = input.value;
+    const newValue = originalValue.slice(0, start) + `\${${varName}}` + originalValue.slice(end);
+
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(input),
+      "value"
+    )?.set;
+    if (setter) {
+      setter.call(input, newValue);
+    } else {
+      input.value = newValue;
+    }
+
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
   const handleCloseOthers = async (tabId: string) => {
@@ -960,7 +1026,10 @@ export default function RequestWorkspace({
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-900 text-neutral-200 relative">
+    <div 
+      onContextMenu={handleWorkspaceContextMenu}
+      className="flex flex-col h-full bg-neutral-900 text-neutral-200 relative"
+    >
       {/* Postman-style horizontal linear loader during send/waiting state */}
       {isSending && (
         <div className="absolute top-[44px] left-0 right-0 z-[100] h-[2px] overflow-hidden pointer-events-none">
@@ -1044,17 +1113,15 @@ export default function RequestWorkspace({
       {!activeRequest ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-neutral-900 font-sans">
           <svg viewBox="0 0 500 500" className="h-12 w-12 mb-4 animate-pulse shrink-0">
-            <circle cx="250" cy="250" r="230" fill="#FF6C37" />
-            <g fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M170 360 V160" />
-              <path d="M170 160 H270 C330 160, 330 250, 270 250 H170" />
-              <path d="M245 250 L335 360" />
-              <path d="M240 195 H265 L285 215 L265 235 H240 Z" fill="#FFFFFF" stroke-width="0" />
+            <rect width="500" height="500" rx="110" fill="#FF6C37"/>
+            <g transform="translate(45, 10)">
+              <path d="M150 380 L250 120 L350 380" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M185 290 H315" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round"/>
+              <circle cx="250" cy="120" r="16" fill="#FF6C37" stroke="#FFFFFF" stroke-width="8"/>
+              <circle cx="250" cy="290" r="16" fill="#FF6C37" stroke="#FFFFFF" stroke-width="8"/>
             </g>
-            <path d="M120 220 H140" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
-            <path d="M110 260 H135" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.4"/>
           </svg>
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">RestMan Premium API Studio</h3>
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Apify Premium API Studio</h3>
           <p className="text-xs text-neutral-500 max-w-sm mt-1 leading-relaxed mb-6">
             A state-of-the-art, offline-first API client. Select an endpoint from the left sidebar, create a draft, or import a collection to begin.
           </p>
@@ -1587,7 +1654,7 @@ export default function RequestWorkspace({
                           const parsed = JSON.parse(localBodyContent || "{}");
                           handleBodyContentChange(JSON.stringify(parsed, null, 2));
                         } catch {
-                          alert("Invalid JSON format. Check syntax to beautify.");
+                          showToast("Invalid JSON format — check your syntax to beautify.", "error");
                         }
                       }}
                       className="text-[10px] bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white px-2.5 py-1 rounded transition-all cursor-pointer font-sans"
@@ -1811,6 +1878,155 @@ export default function RequestWorkspace({
           >
             Close All
           </button>
+        </div>
+      )}
+
+      {/* Custom Context Menu on Text Selection in Inputs */}
+      {selectionContextMenu && (
+        <div
+          style={{ top: `${selectionContextMenu.y}px`, left: `${selectionContextMenu.x}px` }}
+          className="fixed z-[9999] w-48 bg-neutral-950 border border-neutral-850 rounded-lg p-1 shadow-2xl text-[11px] font-semibold text-neutral-400 font-sans"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              setCreateVariableData({
+                value: selectionContextMenu.text,
+                inputElement: selectionContextMenu.targetInput,
+              });
+              setNewVarName("");
+              setNewVarValue(selectionContextMenu.text);
+              setNewVarDesc("");
+              setSelectionContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-1.5 hover:bg-neutral-900 rounded hover:text-white flex items-center gap-1.5 cursor-pointer bg-transparent border-none text-neutral-400 animate-fade-in"
+          >
+            <Plus className="h-3.5 w-3.5 text-emerald-400" /> Set as New Variable
+          </button>
+
+          {variables.length > 0 && (
+            <>
+              <div className="border-t border-neutral-900 my-1"></div>
+              <div className="px-2.5 py-1 text-[9px] uppercase tracking-wider text-neutral-500 font-bold">Update Existing</div>
+              <div className="max-h-36 overflow-y-auto scrollbar-thin">
+                {variables.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={async () => {
+                      try {
+                        await db.variables.update(v.id, { value: selectionContextMenu.text });
+                        showToast(`Updated variable \${${v.id}} value`, "success");
+                        replaceSelectionWithVar(selectionContextMenu.targetInput, v.id);
+                      } catch (err) {
+                        showToast("Failed to update variable", "error");
+                      }
+                      setSelectionContextMenu(null);
+                    }}
+                    className="w-full text-left px-2.5 py-1 hover:bg-neutral-900 rounded truncate hover:text-white flex items-center gap-1.5 cursor-pointer bg-transparent border-none text-neutral-400 font-mono text-[10px]"
+                    title={`Update ${v.id} to "${selectionContextMenu.text}"`}
+                  >
+                    ${`{`}{v.id}{`}`}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Modern Theme-Aware Modal for creating variables */}
+      {createVariableData && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm bg-neutral-950 border border-neutral-850 rounded-xl p-4 shadow-2xl animate-slide-up flex flex-col gap-3 text-xs font-sans text-neutral-200">
+            <div className="flex items-center justify-between border-b border-neutral-900 pb-2">
+              <span className="font-bold text-white text-sm">Create New Variable</span>
+              <button
+                onClick={() => setCreateVariableData(null)}
+                className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div>
+                <label className="block text-[9px] uppercase tracking-wider text-neutral-500 mb-1 font-semibold">Variable Name</label>
+                <input
+                  type="text"
+                  value={newVarName}
+                  onChange={(e) => setNewVarName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+                  placeholder="e.g. baseUrl"
+                  className="w-full bg-neutral-900 border border-neutral-850 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-neutral-700 focus:outline-none focus:border-brand-blue font-mono"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] uppercase tracking-wider text-neutral-500 mb-1 font-semibold">Value</label>
+                <input
+                  type="text"
+                  value={newVarValue}
+                  onChange={(e) => setNewVarValue(e.target.value)}
+                  placeholder="Variable value"
+                  className="w-full bg-neutral-900 border border-neutral-850 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-neutral-700 focus:outline-none focus:border-brand-blue font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] uppercase tracking-wider text-neutral-500 mb-1 font-semibold">Description (Optional)</label>
+                <input
+                  type="text"
+                  value={newVarDesc}
+                  onChange={(e) => setNewVarDesc(e.target.value)}
+                  placeholder="Describe variable purpose..."
+                  className="w-full bg-neutral-900 border border-neutral-850 rounded-lg px-2.5 py-1.5 text-xs text-neutral-400 placeholder-neutral-700 focus:outline-none focus:border-brand-blue"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-2 border-t border-neutral-900 pt-3">
+              <button
+                type="button"
+                onClick={() => setCreateVariableData(null)}
+                className="px-3 py-1.5 hover:bg-neutral-900 rounded-lg text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const trimmedName = newVarName.trim();
+                  if (!trimmedName) {
+                    showToast("Variable name is required", "error");
+                    return;
+                  }
+                  const duplicate = variables.some((v) => v.id.toLowerCase() === trimmedName.toLowerCase());
+                  if (duplicate) {
+                    showToast(`Variable "${trimmedName}" already exists`, "error");
+                    return;
+                  }
+
+                  try {
+                    await db.variables.add({
+                      id: trimmedName,
+                      value: newVarValue,
+                      enabled: true,
+                      description: newVarDesc
+                    });
+
+                    replaceSelectionWithVar(createVariableData.inputElement, trimmedName);
+                    showToast(`Created variable \${${trimmedName}}`, "success");
+                    setCreateVariableData(null);
+                  } catch (err) {
+                    showToast("Failed to create variable", "error");
+                  }
+                }}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition-colors cursor-pointer"
+              >
+                Create & Replace
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

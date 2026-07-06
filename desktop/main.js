@@ -8,14 +8,15 @@ function createWindow() {
     width: 1300,
     height: 850,
     show: false, // Hide initial launch to prevent flashing non-maximized size
-    title: "Restman - Premium API Studio",
+    title: "Apify - Premium API Studio",
+    icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
-    backgroundColor: "#181818",
+    backgroundColor: "#151515",
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#181818',
+      color: '#151515',
       symbolColor: '#a3a3a3',
-      height: 41
+      height: 44
     },
     webPreferences: {
       webSecurity: true, // Securely enable webSecurity

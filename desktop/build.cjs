@@ -7,7 +7,7 @@ const desktopDir = __dirname;
 const buildDir = path.join(rootDir, 'dist-desktop');
 const releaseDir = path.join(rootDir, 'release-builds');
 
-console.log('--- STARTING RESTMAN STANDALONE SINGLE-EXE BUILD ---');
+console.log('--- STARTING APIFY STANDALONE SINGLE-EXE BUILD ---');
 
 // 1. Build the Vite project
 console.log('Step 1: Building Vite production single-file bundle...');
@@ -40,14 +40,22 @@ fs.copyFileSync(
   path.join(desktopDir, 'preload.js'),
   path.join(buildDir, 'preload.js')
 );
+fs.copyFileSync(
+  path.join(desktopDir, 'icon.ico'),
+  path.join(buildDir, 'icon.ico')
+);
+fs.copyFileSync(
+  path.join(desktopDir, '..', 'public', 'icon.png'),
+  path.join(buildDir, 'icon.png')
+);
 
 // 4. Generate local package.json for Electron
 console.log('Step 4: Writing temporary packaging manifest...');
 const packageJsonContent = {
-  name: "restman-desktop",
+  name: "apify-desktop",
   version: "1.0.0",
   main: "main.js",
-  description: "Restman - Premium API Studio Standalone Desktop Client",
+  description: "Apify - Premium API Studio Standalone Desktop Client",
   private: true,
   author: "Akib",
   dependencies: {}
@@ -59,13 +67,13 @@ fs.writeFileSync(
 
 // 5. Run electron-packager
 console.log('Step 5: Invoking Electron compiler...');
-const electronPackagedDir = path.join(releaseDir, 'Restman-win32-x64');
+const electronPackagedDir = path.join(releaseDir, 'Apify-win32-x64');
 if (fs.existsSync(electronPackagedDir)) {
   fs.rmSync(electronPackagedDir, { recursive: true, force: true });
 }
 
 try {
-  const cmd = `npx --package=electron-packager electron-packager "${buildDir}" Restman --platform=win32 --arch=x64 --electron-version=31.3.0 --out="${releaseDir}" --overwrite`;
+  const cmd = `npx --package=electron-packager electron-packager "${buildDir}" Apify --platform=win32 --arch=x64 --electron-version=31.3.0 --out="${releaseDir}" --overwrite --icon="${path.join(desktopDir, 'icon.ico')}"`;
   execSync(cmd, { cwd: rootDir, stdio: 'inherit' });
 } catch (e) {
   console.error('Error during Electron packaging:', e);
@@ -90,7 +98,7 @@ try {
 
 // 7. Compile Launcher embedding app.zip
 console.log('Step 7: Compiling C# launcher and embedding app.zip resource...');
-const finalExePath = path.join(releaseDir, 'Restman.exe');
+const finalExePath = path.join(releaseDir, 'Apify.exe');
 if (fs.existsSync(finalExePath)) {
   fs.unlinkSync(finalExePath);
 }
@@ -111,7 +119,7 @@ try {
   const launcherSrc = path.join(desktopDir, 'Launcher.cs');
   
   // Compile using MS .NET compiler with reference to System.IO.Compression, Windows Forms, and Drawing libraries
-  const cmd = `"${cscPath}" /target:winexe /out:"${finalExePath}" /r:System.IO.Compression.FileSystem.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /resource:"${zipPath}" "${launcherSrc}"`;
+  const cmd = `"${cscPath}" /target:winexe /out:"${finalExePath}" /r:System.IO.Compression.FileSystem.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /resource:"${zipPath}" /win32icon:"${path.join(desktopDir, 'icon.ico')}" "${launcherSrc}"`;
   console.log(`Executing compilation command: ${cmd}`);
   execSync(cmd, { cwd: rootDir, stdio: 'inherit' });
   console.log('\n--- SUCCESS: Standalone Single-File Executable Compiled ---');

@@ -8,7 +8,8 @@ import ResponseWorkspace from "./components/ResponseWorkspace";
 import CommandPalette from "./components/CommandPalette";
 import VariablesModal from "./components/VariablesModal";
 import SettingsModal from "./components/SettingsModal";
-import { AlertTriangle, X, Sliders, Settings, Loader2 } from "lucide-react";
+import Toast from "./components/Toast";
+import { AlertTriangle, X, Sliders, Settings } from "lucide-react";
 
 interface TabResponseState {
   data: any;
@@ -188,9 +189,10 @@ export default function App() {
     }
   }, [layoutMode, isInitialized]);
 
-  // Sync zoom level with DOM and persist (mapping 1.0 base UI zoom to 1.35 physical CSS zoom for readability)
+  // Sync zoom level with DOM and persist (in Electron apply a 1x scale; in web use raw zoomLevel)
   useEffect(() => {
-    document.body.style.zoom = `${zoomLevel * 1.35}`;
+    // Only apply zoom to the whole body — do NOT add a 1.35 multiplier in the web browser
+    document.body.style.zoom = `${zoomLevel}`;
     if (isInitialized) {
       db.uiState.put({ key: "zoomLevel", value: zoomLevel });
     }
@@ -705,13 +707,14 @@ export default function App() {
 
   if (!isInitialized) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 text-neutral-200 font-sans select-none">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-brand-blue" />
-          <div className="flex flex-col items-center gap-1">
-            <h1 className="text-xl font-semibold text-white tracking-wider">RestMan</h1>
-            <p className="text-xs text-neutral-500 font-mono">Initializing offline workspace database...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0c] text-neutral-200 font-sans select-none">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-1.5 mb-2 h-4">
+            <div className="w-2 h-2 rounded-full bg-[#FF6C37] bouncing-dot" />
+            <div className="w-2 h-2 rounded-full bg-[#FF6C37] bouncing-dot" />
+            <div className="w-2 h-2 rounded-full bg-[#FF6C37] bouncing-dot" />
           </div>
+          <span className="text-[11px] font-semibold text-neutral-400 tracking-wider">Loading Apify</span>
         </div>
       </div>
     );
@@ -946,6 +949,9 @@ export default function App() {
         onClose={() => setCommandPaletteOpen(false)}
         onAction={handleCommandPaletteAction}
       />
+
+      {/* Global themed toast notifications — replaces all native alert() dialogs */}
+      <Toast />
 
       {/* VS Code Style Status Bar (Fixed 24px height, dark unified background, controls on the right, Settings on the left) */}
       <div className="h-6 shrink-0 bg-sidebar-bg border-t border-sidebar-border text-sidebar-text-muted flex items-center justify-between px-3 text-[10.5px] font-sans select-none z-[30] relative">
