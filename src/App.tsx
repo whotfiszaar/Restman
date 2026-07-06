@@ -469,7 +469,7 @@ export default function App() {
       // Apply authentication header properties
       if (req.auth.type === "bearer" && req.auth.bearerToken) {
         const token = resolveVariables(req.auth.bearerToken, mergedVariables);
-        fetchHeaders.append("Authorization", `Bearer ${token}`);
+        fetchHeaders.append("Authorization", token);
       } else if (req.auth.type === "basic" && req.auth.basicUsername) {
         const user = resolveVariables(req.auth.basicUsername, mergedVariables);
         const pass = resolveVariables(req.auth.basicPassword || "", mergedVariables);
