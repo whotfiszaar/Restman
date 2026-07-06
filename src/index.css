@@ -248,8 +248,35 @@ select:hover {
 }
 
 /* Light theme text color overrides — ensure near-black text on light backgrounds */
-[data-theme="light"] .text-neutral-200 { color: var(--text-main); }
-[data-theme="light"] .placeholder-neutral-600::placeholder { color: #a1a1aa; }
+[data-theme="light"] .text-neutral-200,
+[data-theme="high-contrast-light"] .text-neutral-200,
+[data-theme="ayu-light"] .text-neutral-200,
+[data-theme="night-owl-light"] .text-neutral-200,
+[data-theme="solarized-light"] .text-neutral-200 {
+  color: var(--text-main) !important;
+}
+
+[data-theme="light"] .text-white,
+[data-theme="high-contrast-light"] .text-white,
+[data-theme="ayu-light"] .text-white,
+[data-theme="night-owl-light"] .text-white,
+[data-theme="solarized-light"] .text-white {
+  color: var(--text-main) !important;
+}
+
+[data-theme="light"] .placeholder-neutral-600::placeholder,
+[data-theme="high-contrast-light"] .placeholder-neutral-600::placeholder,
+[data-theme="ayu-light"] .placeholder-neutral-600::placeholder,
+[data-theme="night-owl-light"] .placeholder-neutral-600::placeholder,
+[data-theme="solarized-light"] .placeholder-neutral-600::placeholder {
+  color: #71717a !important;
+}
+
+/* Force selection highlights to use the current theme selection variables */
+::selection {
+  background-color: var(--selection-bg) !important;
+  color: var(--text-main) !important;
+}
 
 /* Animations */
 @keyframes pulse-border {
