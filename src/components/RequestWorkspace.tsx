@@ -10,7 +10,8 @@ import {
   PlusCircle,
   Trash2,
   Lock,
-  Upload
+  Upload,
+  RefreshCw
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import CustomSelect from "./CustomSelect";
@@ -574,7 +575,7 @@ export default function RequestWorkspace({
       } catch {
         // Continue URL paste
       }
-    } else if (pastedText.toLowerCase().startsWith("http://") || pastedText.toLowerCase().startsWith("https://") || pastedText.includes("?")) {
+    } else if (pastedText.includes("%") || pastedText.toLowerCase().startsWith("http://") || pastedText.toLowerCase().startsWith("https://") || pastedText.includes("?")) {
       e.preventDefault();
       try {
         let decoded = pastedText;
@@ -1023,6 +1024,31 @@ export default function RequestWorkspace({
         }
       }
     }
+  };
+
+  const replaceSelectionWithText = (
+    input: HTMLInputElement | HTMLTextAreaElement,
+    replacementText: string
+  ) => {
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    if (start === null || end === null) return;
+
+    const originalValue = input.value;
+    const newValue = originalValue.slice(0, start) + replacementText + originalValue.slice(end);
+
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(input),
+      "value"
+    )?.set;
+    if (setter) {
+      setter.call(input, newValue);
+    } else {
+      input.value = newValue;
+    }
+
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
   const replaceSelectionWithVar = (
@@ -2009,6 +2035,27 @@ export default function RequestWorkspace({
           className="fixed z-[9999] w-48 bg-neutral-950 border border-neutral-850 rounded-lg p-1 shadow-2xl text-[11px] font-semibold text-neutral-400 font-sans"
           onClick={(e) => e.stopPropagation()}
         >
+          {selectionContextMenu.text.includes("%") && (
+            <>
+              <button
+                onClick={() => {
+                  try {
+                    const decoded = decodeURIComponent(selectionContextMenu.text);
+                    replaceSelectionWithText(selectionContextMenu.targetInput, decoded);
+                    showToast("URL decoded successfully", "success");
+                  } catch (err) {
+                    showToast("Failed to decode URL", "error");
+                  }
+                  setSelectionContextMenu(null);
+                }}
+                className="w-full text-left px-2.5 py-1.5 hover:bg-neutral-900 rounded hover:text-white flex items-center gap-1.5 cursor-pointer bg-transparent border-none text-neutral-400 animate-fade-in"
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-emerald-400" /> Decode URL
+              </button>
+              <div className="border-t border-neutral-900 my-1"></div>
+            </>
+          )}
+
           <button
             onClick={() => {
               setCreateVariableData({

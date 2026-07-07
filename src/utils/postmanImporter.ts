@@ -93,6 +93,19 @@ export async function importPostmanCollection(jsonString: string): Promise<Postm
             // Convert variable syntax
             urlStr = convertPostmanVariables(urlStr);
 
+            // Auto-decode percent encoding for imported URLs
+            try {
+              let decoded = urlStr;
+              for (let i = 0; i < 3; i++) {
+                const nextDecoded = decodeURIComponent(decoded);
+                if (nextDecoded === decoded) break;
+                decoded = nextDecoded;
+              }
+              urlStr = decoded;
+            } catch (err) {
+              // fallback
+            }
+
             // Parse HTTP Method
             const method = (request.method || "GET").toUpperCase();
 
