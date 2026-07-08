@@ -8,6 +8,11 @@
 
 @import "tailwindcss";
 
+/* ── Workspace Monospace Font Override ── */
+html, body, #root, .font-sans, .font-mono, .font-serif, input, textarea, select, button, span, p, div, table, th, td {
+  font-family: 'IBM Plex Mono', IBMPlexMono, 'Courier New', monospace !important;
+}
+
 /* Default Theme: Dark (VS Code Dark Modern / Postman Dark) */
 :root {
   --sidebar-bg: #151515;

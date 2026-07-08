@@ -7,7 +7,6 @@ import { useLiveQuery } from "dexie-react-hooks";
 import {
   Plus,
   X,
-  PlusCircle,
   Trash2,
   Lock,
   Upload,
@@ -252,16 +251,44 @@ export default function RequestWorkspace({
         setLocalUrl(activeRequest.url || "");
       }
       if (!debounceTimers.current["params"]) {
-        setLocalParams(activeRequest.params || []);
+        const p = activeRequest.params ? [...activeRequest.params] : [];
+        if (p.length === 0) {
+          p.push({
+            id: `param-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            key: "",
+            value: "",
+            enabled: true,
+          });
+        }
+        setLocalParams(p);
       }
       if (!debounceTimers.current["headers"]) {
-        setLocalHeaders(activeRequest.headers || []);
+        const h = activeRequest.headers ? [...activeRequest.headers] : [];
+        if (h.length === 0) {
+          h.push({
+            id: `header-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            key: "",
+            value: "",
+            enabled: true,
+          });
+        }
+        setLocalHeaders(h);
       }
       if (!debounceTimers.current["body"]) {
         setLocalBodyContent(activeRequest.body?.content || "");
       }
       if (!debounceTimers.current["formParams"]) {
-        setLocalFormParams(activeRequest.body?.formParams || []);
+        const fp = activeRequest.body?.formParams ? [...activeRequest.body.formParams] : [];
+        if (fp.length === 0) {
+          fp.push({
+            id: `fp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            key: "",
+            value: "",
+            enabled: true,
+            type: "text",
+          });
+        }
+        setLocalFormParams(fp);
       }
     } else {
       setLocalUrl("");
@@ -603,6 +630,17 @@ export default function RequestWorkspace({
     if (!activeRequest) return;
     const items = [...localParams];
     items[idx][field] = val;
+
+    // Postman behavior: if editing last row and it's not empty, add new empty row
+    if (idx === items.length - 1 && val.trim() !== "") {
+      items.push({
+        id: `param-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        key: "",
+        value: "",
+        enabled: true,
+      });
+    }
+
     setLocalParams(items);
 
     const { baseUrl } = parseUrlAndParams(localUrl);
@@ -641,38 +679,21 @@ export default function RequestWorkspace({
     }
   };
 
-  const handleAddParamRow = async () => {
-    if (!activeRequest) return;
-    saveHistoryState(true);
-    const newRow = {
-      id: `param-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      key: "",
-      value: "",
-      enabled: true,
-    };
-    const updated = [...localParams, newRow];
-    setLocalParams(updated);
 
-    const { baseUrl } = parseUrlAndParams(localUrl);
-    const newFullUrl = buildUrlWithParams(baseUrl, updated);
-    setLocalUrl(newFullUrl);
-
-    try {
-      await db.requests.update(activeRequest.id, {
-        url: newFullUrl,
-        params: updated,
-      });
-      setTimeout(() => saveHistoryState(true), 0);
-    } catch (err) {
-      console.error("Failed to add param row:", err);
-    }
-  };
 
   const handleRemoveParamRow = async (idx: number) => {
     if (!activeRequest) return;
     saveHistoryState(true);
-    const items = [...localParams];
+    let items = [...localParams];
     items.splice(idx, 1);
+    if (items.length === 0) {
+      items.push({
+        id: `param-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        key: "",
+        value: "",
+        enabled: true,
+      });
+    }
     setLocalParams(items);
 
     const { baseUrl } = parseUrlAndParams(localUrl);
@@ -695,6 +716,17 @@ export default function RequestWorkspace({
     if (!activeRequest) return;
     const items = [...localHeaders];
     items[idx][field] = val;
+
+    // Postman behavior: if editing last row and it's not empty, add new empty row
+    if (idx === items.length - 1 && val.trim() !== "") {
+      items.push({
+        id: `header-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        key: "",
+        value: "",
+        enabled: true,
+      });
+    }
+
     setLocalHeaders(items);
 
     runDebouncedUpdate("headers", async () => {
@@ -721,30 +753,20 @@ export default function RequestWorkspace({
     }
   };
 
-  const handleAddHeaderRow = async () => {
-    if (!activeRequest) return;
-    const newRow = {
-      id: `header-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      key: "",
-      value: "",
-      enabled: true,
-    };
-    const updated = [...localHeaders, newRow];
-    setLocalHeaders(updated);
 
-    try {
-      await db.requests.update(activeRequest.id, {
-        headers: updated,
-      });
-    } catch (err) {
-      console.error("Failed to add header row:", err);
-    }
-  };
 
   const handleRemoveHeaderRow = async (idx: number) => {
     if (!activeRequest) return;
-    const items = [...localHeaders];
+    let items = [...localHeaders];
     items.splice(idx, 1);
+    if (items.length === 0) {
+      items.push({
+        id: `header-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        key: "",
+        value: "",
+        enabled: true,
+      });
+    }
     setLocalHeaders(items);
 
     try {
@@ -911,6 +933,18 @@ export default function RequestWorkspace({
     if (!activeRequest) return;
     const paramsList = [...localFormParams];
     paramsList[idx][field] = val;
+
+    // Postman behavior: if editing last row and it's not empty, add new empty row
+    if (idx === paramsList.length - 1 && val.trim() !== "") {
+      paramsList.push({
+        id: `fp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        key: "",
+        value: "",
+        enabled: true,
+        type: "text",
+      });
+    }
+
     setLocalFormParams(paramsList);
 
     runDebouncedUpdate("formParams", async () => {
@@ -923,34 +957,21 @@ export default function RequestWorkspace({
     });
   };
 
-  const handleAddFormParam = async () => {
-    if (!activeRequest) return;
-    const paramsList = [...localFormParams];
-    paramsList.push({
-      id: `fp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      key: "",
-      value: "",
-      enabled: true,
-      type: "text",
-    });
-    setLocalFormParams(paramsList);
 
-    try {
-      await db.requests.update(activeRequest.id, {
-        body: {
-          ...activeRequest.body,
-          formParams: paramsList,
-        },
-      });
-    } catch (err) {
-      console.error("Failed to add form parameter:", err);
-    }
-  };
 
   const handleRemoveFormParam = async (idx: number) => {
     if (!activeRequest) return;
-    const paramsList = [...localFormParams];
+    let paramsList = [...localFormParams];
     paramsList.splice(idx, 1);
+    if (paramsList.length === 0) {
+      paramsList.push({
+        id: `fp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        key: "",
+        value: "",
+        enabled: true,
+        type: "text",
+      });
+    }
     setLocalFormParams(paramsList);
 
     try {
@@ -1379,13 +1400,6 @@ export default function RequestWorkspace({
               <div className="flex flex-col gap-2 h-full">
                 <div className="flex justify-between items-center text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1">
                   <span>Query Parameters</span>
-                  <button
-                    onClick={handleAddParamRow}
-                    className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                  >
-                    <PlusCircle className="h-3.5 w-3.5" />
-                    <span>Add Parameter</span>
-                  </button>
                 </div>
 
                 <div className="border border-neutral-900 rounded-lg overflow-x-auto">
@@ -1493,16 +1507,7 @@ export default function RequestWorkspace({
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-2.5 flex justify-start">
-                  <button
-                    type="button"
-                    onClick={handleAddParamRow}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900/60 hover:bg-neutral-900 border border-neutral-850 hover:border-neutral-800 text-neutral-300 rounded-lg text-xs font-sans transition-all cursor-pointer shadow-md"
-                  >
-                    <PlusCircle className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Add Parameter Row</span>
-                  </button>
-                </div>
+
               </div>
             )}
 
@@ -1511,13 +1516,6 @@ export default function RequestWorkspace({
               <div className="flex flex-col gap-2 h-full">
                 <div className="flex justify-between items-center text-[10px] text-neutral-500 mb-1">
                   <span>Custom Request Headers (auto-detected based on payload where appropriate)</span>
-                  <button
-                    onClick={handleAddHeaderRow}
-                    className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                  >
-                    <PlusCircle className="h-3.5 w-3.5" />
-                    <span>Add Header</span>
-                  </button>
                 </div>
 
                 <div className="border border-neutral-900 rounded-lg relative overflow-visible">
@@ -1680,16 +1678,7 @@ export default function RequestWorkspace({
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-2.5 flex justify-start">
-                  <button
-                    type="button"
-                    onClick={handleAddHeaderRow}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900/60 hover:bg-neutral-900 border border-neutral-850 hover:border-neutral-800 text-neutral-300 rounded-lg text-xs font-sans transition-all cursor-pointer shadow-md"
-                  >
-                    <PlusCircle className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Add Header Row</span>
-                  </button>
-                </div>
+
               </div>
             )}
 
@@ -1870,13 +1859,6 @@ export default function RequestWorkspace({
                   <div className="flex flex-col gap-2 h-full font-sans">
                     <div className="flex justify-between items-center text-[10px] text-neutral-500">
                       <span>Form Data Payload (Multipart boundaries)</span>
-                      <button
-                        onClick={handleAddFormParam}
-                        className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                      >
-                        <PlusCircle className="h-3.5 w-3.5" />
-                        <span>Add Param</span>
-                      </button>
                     </div>
 
                     <div className="border border-neutral-900 rounded-lg overflow-x-auto font-mono">
@@ -1938,12 +1920,7 @@ export default function RequestWorkspace({
                     <p className="text-[11px] text-neutral-500">
                       Dispatched as URL-encoded structure (<code className="text-emerald-400">application/x-www-form-urlencoded</code>). Same syntax as URL Query parameters.
                     </p>
-                    <button
-                      onClick={handleAddFormParam}
-                      className="text-neutral-400 hover:text-white flex items-center gap-1.5 self-start text-[10px] cursor-pointer bg-transparent border-none"
-                    >
-                      <Plus className="h-3.5 w-3.5" /> Add URL-encoded key
-                    </button>
+
                     {/* Urlenocded values reuse the form data table simply */}
                     <div className="border border-neutral-900 rounded-lg overflow-x-auto font-mono">
                       <table className="w-full border-collapse text-xs text-left">

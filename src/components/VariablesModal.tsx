@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { db, type Variable } from "../db/db";
 import { X, Plus, Trash2, Eye, EyeOff, Search, Copy, Check } from "lucide-react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { refactorVariableOccurrences } from "../utils/variableRefactor";
+import { refactorVariableOccurrences, dereferenceVariableOccurrences, renameVariableOccurrences } from "../utils/variableRefactor";
 
 interface VariablesModalProps {
   isOpen: boolean;
@@ -107,6 +107,10 @@ export default function VariablesModal({ isOpen, onClose }: VariablesModalProps)
 
   const handleDeleteGlobal = async (id: string) => {
     try {
+      const variable = await db.variables.get(id);
+      if (variable) {
+        await dereferenceVariableOccurrences(id, variable.value);
+      }
       await db.variables.delete(id);
     } catch (err) {
       console.error("Failed to delete variable:", err);
@@ -261,7 +265,38 @@ export default function VariablesModal({ isOpen, onClose }: VariablesModalProps)
                         </td>
                         <td className="py-2 px-3 text-white font-semibold flex items-center gap-1">
                           <span className="text-neutral-500">${`{`}</span>
-                          <span className="text-emerald-400">{v.id}</span>
+                          <input
+                            type="text"
+                            defaultValue={v.id}
+                            onBlur={async (e) => {
+                              const newId = e.target.value.trim().replace(/[\$\{\}]/g, "");
+                              const oldId = v.id;
+                              if (newId === oldId) return;
+                              if (!newId) {
+                                e.target.value = oldId;
+                                return;
+                              }
+                              const exists = variables.some(item => item.id.toLowerCase() === newId.toLowerCase());
+                              if (exists) {
+                                e.target.value = oldId;
+                                return;
+                              }
+                              try {
+                                await db.variables.put({
+                                  id: newId,
+                                  value: v.value,
+                                  description: v.description || "",
+                                  enabled: v.enabled
+                                });
+                                await db.variables.delete(oldId);
+                                await renameVariableOccurrences(oldId, newId);
+                              } catch (err) {
+                                console.error("Rename failed", err);
+                                e.target.value = oldId;
+                              }
+                            }}
+                            className="bg-transparent border-none text-emerald-400 font-semibold focus:outline-none focus:ring-1 focus:ring-neutral-850 rounded px-1 py-0.5 w-full text-xs font-mono"
+                          />
                           <span className="text-neutral-500">{`}`}</span>
                         </td>
                         <td className="py-2 px-3">

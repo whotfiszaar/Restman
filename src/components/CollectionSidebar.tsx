@@ -20,8 +20,10 @@ import {
   FolderDown,
   X,
   ArrowUpDown,
-  Check
+  Check,
+  Settings
 } from "lucide-react";
+import UpdateChecker from "./UpdateChecker";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface DiscoveredCollection {
@@ -236,7 +238,9 @@ export default function CollectionSidebar({
         r.name.toLowerCase().includes(term) ||
         r.url.toLowerCase().includes(term) ||
         r.method.toLowerCase().includes(term) ||
-        (r.tags && r.tags.some((t) => t.toLowerCase().includes(term)))
+        (r.tags && r.tags.some((t) => t.toLowerCase().includes(term))) ||
+        (r.params && r.params.some((p) => p.key?.toLowerCase().includes(term) || p.value?.toLowerCase().includes(term))) ||
+        (r.headers && r.headers.some((h) => h.key?.toLowerCase().includes(term) || h.value?.toLowerCase().includes(term)))
     );
   }, [requests, search]);
 
@@ -1205,6 +1209,23 @@ export default function CollectionSidebar({
             })}
           </div>
         </div>
+      </div>
+
+      {/* Sidebar Footer with Settings and Update Check */}
+      <div className="p-2 border-t border-sidebar-border bg-sidebar-bg shrink-0 flex items-center justify-between text-[10px] font-sans text-sidebar-text-muted">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onOpenSettings()}
+            className="hover:text-white p-1 rounded hover:bg-neutral-900 transition-colors cursor-pointer bg-transparent border-none flex items-center justify-center text-sidebar-text-muted"
+            title="Open Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+          <span>v2.1.4</span>
+        </div>
+
+        {/* Update Checker Panel */}
+        <UpdateChecker />
       </div>
 
 
